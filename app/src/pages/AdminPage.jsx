@@ -25,7 +25,7 @@ function AddStaffModal({ onClose, onAdded, existingIds }) {
 
     setLoading(true);
     try {
-      const email = `${id.toLowerCase()}@nagarnigam.local`;
+      const email = `${id.toLowerCase()}@dmc.org`;
       const tmp = makeTempClient();
       const { data: signUpData, error: signUpErr } = await tmp.auth.signUp({ email, password: p });
       if (signUpErr) throw signUpErr;

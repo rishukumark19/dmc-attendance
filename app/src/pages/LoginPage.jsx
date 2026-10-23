@@ -26,8 +26,9 @@ export default function LoginPage() {
     if (!id || !pin) { showErr('Please fill all fields.'); return; }
     setLoading(true); setError('');
     try {
+      const email = `${id.toLowerCase()}@dmc.org`;
       const { error } = await supabase.auth.signInWithPassword({
-        email: `${id.toLowerCase()}@nagarnigam.local`,
+        email,
         password: pin,
       });
       if (error) throw error;
