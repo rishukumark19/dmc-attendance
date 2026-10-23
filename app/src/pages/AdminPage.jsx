@@ -1,10 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Header from '../components/Header';
+import AnimatedNumber from '../components/AnimatedNumber';
 import { useAuth } from '../context/AuthContext';
 import { supabase, makeTempClient } from '../lib/supabase';
 import { todayIST, hrs, pay, money, fmtT, getInitials, fillMonths, pad } from '../lib/utils';
 import './AdminPage.css';
+
+const stagger = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.07 } },
+};
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
+};
 
 const MONTHS = fillMonths(12);
 
@@ -197,49 +208,62 @@ export default function AdminPage() {
     );
   }
 
+  const tabPanelVariant = {
+    hidden: { opacity: 0, y: 14 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.38, ease: [0.16, 1, 0.3, 1] } },
+    exit: { opacity: 0, y: -10, transition: { duration: 0.2 } },
+  };
+
   return (
     <div className="admin-page">
       <Header title="नगर निगम — Admin Dashboard" subtitle="Attendance & Salary Management" />
 
-      {showModal && (
-        <AddStaffModal
-          onClose={() => setShowModal(false)}
-          onAdded={() => { loadStaff(); loadToday(); }}
-          existingIds={allStaff.map(s => s.emp_id?.toUpperCase())}
-        />
-      )}
+      <AnimatePresence>
+        {showModal && (
+          <AddStaffModal
+            onClose={() => setShowModal(false)}
+            onAdded={() => { loadStaff(); loadToday(); }}
+            existingIds={allStaff.map(s => s.emp_id?.toUpperCase())}
+          />
+        )}
+      </AnimatePresence>
 
-      <main className="admin-main">
-        {/* Stats row */}
-        <div className="stats-grid">
+      <motion.main
+        className="admin-main"
+        variants={stagger}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* ── Neumorphic Stat Cards ── */}
+        <motion.div className="stats-grid" variants={fadeUp}>
           <div className="stat-card stat-navy">
             <span className="sc-icon">👥</span>
             <div className="sc-lbl">Total Staff</div>
-            <div className="sc-val">{allStaff.length}</div>
+            <div className="sc-val"><AnimatedNumber value={allStaff.length} /></div>
             <div className="sc-sub">Registered employees</div>
           </div>
           <div className="stat-card stat-green">
             <span className="sc-icon">✅</span>
-            <div className="sc-lbl">Today Present / आज</div>
-            <div className="sc-val">{todayRecs.length}</div>
+            <div className="sc-lbl">Today Present</div>
+            <div className="sc-val"><AnimatedNumber value={todayRecs.length} /></div>
             <div className="sc-sub">{new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</div>
           </div>
           <div className="stat-card stat-saff">
             <span className="sc-icon">⏱️</span>
-            <div className="sc-lbl">Full Shifts (Month)</div>
-            <div className="sc-val">{totalFull}</div>
-            <div className="sc-sub">Completed 8h shifts</div>
+            <div className="sc-lbl">Full Shifts</div>
+            <div className="sc-val"><AnimatedNumber value={totalFull} /></div>
+            <div className="sc-sub">This month</div>
           </div>
           <div className="stat-card stat-blue">
             <span className="sc-icon">💰</span>
-            <div className="sc-lbl">Salary Payable / वेतन</div>
-            <div className="sc-val sc-val-sm">{money(totalPay)}</div>
+            <div className="sc-lbl">Salary Payable</div>
+            <div className="sc-val sc-val-sm"><AnimatedNumber value={totalPay} prefix="₹" decimals={0} /></div>
             <div className="sc-sub">{salMonthLabel}</div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Tabs */}
-        <div className="admin-tabs">
+        {/* ── Tabs ── */}
+        <motion.div className="admin-tabs" variants={fadeUp}>
           {[
             { key: 'staff',   label: '👥 Staff' },
             { key: 'today',   label: '📅 Today' },
@@ -255,11 +279,14 @@ export default function AdminPage() {
               }}
             >{t.label}</button>
           ))}
-        </div>
+        </motion.div>
 
-        {/* ── Staff tab ── */}
+        {/* ── Tab panels ── */}
+        <AnimatePresence mode="wait">
+
+        {/* Staff tab */}
         {tab === 'staff' && (
-          <div className="panel fade-up">
+          <motion.div key="staff" className="panel" variants={tabPanelVariant} initial="hidden" animate="visible" exit="exit">
             <div className="panel-hdr">
               <div className="panel-title"><span className="panel-icon">👥</span> All Staff / सभी कर्मचारी</div>
               <button className="btn btn-navy btn-sm" onClick={() => setShowModal(true)}>+ Add Staff</button>
@@ -284,21 +311,21 @@ export default function AdminPage() {
                         ? <span className="badge badge-ok">✅ Present</span>
                         : <span className="badge badge-gray">Absent</span>}
                       </td>
-                      <td><button className="btn btn-red btn-sm" onClick={() => removeStaff(s.id, s.name)}>Remove</button></td>
+                      <td><button className="btn-delete" onClick={() => removeStaff(s.id, s.name)}>Remove</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* ── Today tab ── */}
+        {/* Today tab */}
         {tab === 'today' && (
-          <div className="panel fade-up">
+          <motion.div key="today" className="panel" variants={tabPanelVariant} initial="hidden" animate="visible" exit="exit">
             <div className="panel-hdr">
               <div className="panel-title"><span className="panel-icon">📅</span> Today's Attendance</div>
-              <span className="panel-label">{new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              <span className="panel-label">{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
             </div>
             <div className="tbl-wrap">
               <table className="data-table">
@@ -313,12 +340,12 @@ export default function AdminPage() {
                     return (
                       <tr key={r.id}>
                         <td><div className="staff-cell">
-                          <div className="staff-avatar" style={{ background: 'var(--navy2)', width: 32, height: 32, fontSize: '0.75rem' }}>{(r.staff_name || '?')[0].toUpperCase()}</div>
+                          <div className="staff-avatar" style={{ width: 32, height: 32, fontSize: '0.75rem' }}>{(r.staff_name||'?')[0].toUpperCase()}</div>
                           <div><div className="staff-name">{r.staff_name}</div><div className="staff-id">{r.emp_id}</div></div>
                         </div></td>
                         <td>{fmtT(r.in_time)}</td>
                         <td>{fmtT(r.out_time)}</td>
-                        <td>{r.out_time ? h.toFixed(2) + 'h' : '—'}</td>
+                        <td>{r.out_time ? h.toFixed(2)+'h' : '—'}</td>
                         <td><span className={`badge ${bc}`}>{st}</span></td>
                         <td className="sal-val">{r.out_time ? money(pay(h)) : '—'}</td>
                       </tr>
@@ -328,10 +355,10 @@ export default function AdminPage() {
               </table>
             </div>
             <div className="absent-section">
-              <div className="panel-title" style={{ marginBottom: 12 }}><span className="panel-icon">❌</span> Not Present Today</div>
+              <div className="absent-section-title">❌ Not Present Today</div>
               <div className="absent-list">
                 {absentStaff.length === 0
-                  ? <span className="empty-text">All staff are present! 🎉</span>
+                  ? <span className="empty-text">🎉 All staff are present!</span>
                   : absentStaff.map(s => (
                     <div key={s.id} className="absent-pill">
                       <div className="absent-av">{getInitials(s.name)}</div>
@@ -341,12 +368,12 @@ export default function AdminPage() {
                 }
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* ── Records tab ── */}
+        {/* Records tab */}
         {tab === 'records' && (
-          <div className="panel fade-up">
+          <motion.div key="records" className="panel" variants={tabPanelVariant} initial="hidden" animate="visible" exit="exit">
             <div className="panel-hdr">
               <div className="panel-title"><span className="panel-icon">📋</span> Attendance Records</div>
             </div>
@@ -370,17 +397,16 @@ export default function AdminPage() {
                     const h = hrs(r.in_time, r.out_time);
                     const st = !r.out_time ? 'On Duty' : h >= 8 ? 'Full Shift' : 'Short Shift';
                     const bc = !r.out_time ? 'badge-blue' : h >= 8 ? 'badge-ok' : 'badge-warn';
-                    const isToday = r.date === todayIST();
                     return (
                       <tr key={r.id}>
-                        <td>{r.date}{isToday && <span className="badge badge-blue" style={{ fontSize: '0.6rem', marginLeft: 6 }}>Today</span>}</td>
+                        <td>{r.date}{r.date === todayIST() && <span className="badge badge-blue" style={{ fontSize: '0.6rem', marginLeft: 6 }}>Today</span>}</td>
                         <td><div className="staff-cell">
-                          <div className="staff-avatar" style={{ width: 28, height: 28, fontSize: '0.72rem' }}>{(r.staff_name || '?')[0].toUpperCase()}</div>
+                          <div className="staff-avatar" style={{ width: 28, height: 28, fontSize: '0.72rem' }}>{(r.staff_name||'?')[0].toUpperCase()}</div>
                           <div><div className="staff-name">{r.staff_name}</div><div className="staff-id">{r.emp_id}</div></div>
                         </div></td>
                         <td>{fmtT(r.in_time)}</td>
                         <td>{fmtT(r.out_time)}</td>
-                        <td>{r.out_time ? h.toFixed(2) + 'h' : '—'}</td>
+                        <td>{r.out_time ? h.toFixed(2)+'h' : '—'}</td>
                         <td><span className={`badge ${bc}`}>{st}</span></td>
                         <td className="sal-val">{r.out_time ? money(pay(h)) : '—'}</td>
                       </tr>
@@ -389,32 +415,32 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* ── Salary tab ── */}
+        {/* Salary tab */}
         {tab === 'salary' && (
-          <div className="panel fade-up">
+          <motion.div key="salary" className="panel" variants={tabPanelVariant} initial="hidden" animate="visible" exit="exit">
             <div className="panel-hdr">
               <div className="panel-title"><span className="panel-icon">💰</span> Monthly Salary Report</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <select className="filter-input" value={salMonth} onChange={e => setSalMonth(e.target.value)}>
                   {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
-                <button className="btn btn-green btn-sm" onClick={downloadCSV}>⬇ Download CSV</button>
+                <button className="btn btn-green btn-sm" onClick={downloadCSV}>⬇ CSV</button>
               </div>
             </div>
             {allStaff.length > 0 && (
               <div className="rep-bar">
-                <div><div className="rb-val">{allStaff.length}</div><div className="rb-lbl">Staff</div></div>
-                <div><div className="rb-val">{salTotF}</div><div className="rb-lbl">Full Shifts</div></div>
-                <div><div className="rb-val">{salTotH.toFixed(1)}h</div><div className="rb-lbl">Total Hours</div></div>
-                <div><div className="rb-val">{money(salTotPay)}</div><div className="rb-lbl">Total Payable</div></div>
+                <div className="rb-item"><div className="rb-val"><AnimatedNumber value={allStaff.length} /></div><div className="rb-lbl">Staff</div></div>
+                <div className="rb-item"><div className="rb-val"><AnimatedNumber value={salTotF} /></div><div className="rb-lbl">Full Shifts</div></div>
+                <div className="rb-item"><div className="rb-val"><AnimatedNumber value={salTotH} suffix="h" decimals={1} /></div><div className="rb-lbl">Total Hours</div></div>
+                <div className="rb-item"><div className="rb-val"><AnimatedNumber value={salTotPay} prefix="₹" decimals={0} /></div><div className="rb-lbl">Total Payable</div></div>
               </div>
             )}
             <div className="tbl-wrap">
               <table className="data-table">
-                <thead><tr><th>Employee</th><th>Emp ID</th><th>Full Days</th><th>Short Shifts</th><th>Total Hours</th><th>Salary / वेतन</th></tr></thead>
+                <thead><tr><th>Employee</th><th>Emp ID</th><th>Full Days</th><th>Short</th><th>Hours</th><th>Salary / वेतन</th></tr></thead>
                 <tbody>
                   {salaryRows.length === 0 ? (
                     <tr className="empty-row"><td colSpan={6}>No data for this month</td></tr>
@@ -428,15 +454,18 @@ export default function AdminPage() {
                       <td>{full}</td>
                       <td>{sht}</td>
                       <td>{totalH.toFixed(2)}h</td>
-                      <td className="sal-val" style={{ fontSize: '0.95rem' }}>{money(total)}</td>
+                      <td className="sal-val" style={{ fontSize: '0.92rem' }}>{money(total)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
         )}
-      </main>
+
+
+        </AnimatePresence>
+      </motion.main>
     </div>
   );
 }

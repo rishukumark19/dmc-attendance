@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { gsap } from 'gsap';
 import toast from 'react-hot-toast';
 import Header from '../components/Header';
+import AnimatedNumber from '../components/AnimatedNumber';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { todayIST, monthIST, hrs, pay, money, fmtT, pad } from '../lib/utils';
@@ -15,6 +18,15 @@ function useClock() {
   return now;
 }
 
+const stagger = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+const fadeUp = {
+  hidden: { opacity: 0, y: 22 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+};
+
 export default function StaffPage() {
   const { profile } = useAuth();
   const now = useClock();
@@ -22,6 +34,7 @@ export default function StaffPage() {
   const [monthRecs, setMonthRecs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [btnLoading, setBtnLoading] = useState('');
+  const heroBtnRef = useRef(null);
 
   const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   const dateStr = now.toLocaleDateString('hi-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -29,7 +42,7 @@ export default function StaffPage() {
   const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const isSunday = istNow.getDay() === 0;
   const mins = istNow.getHours() * 60 + istNow.getMinutes();
-  const inWindow = mins >= 360 && mins < 481; // 6:00 AM – 8:01 AM
+  const inWindow = mins >= 360 && mins < 481;
   const checkedOut = !!todayRec?.out_time;
   const checkedIn = !!todayRec && !checkedOut;
 
@@ -50,20 +63,18 @@ export default function StaffPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Status pill
   const statusPill = () => {
-    if (isSunday) return { cls: 'pill-gray', text: '🛑 रविवार — अवकाश' };
+    if (isSunday) return { cls: 'pill-gray', text: '🛑 Sunday Off', sub: 'साप्ताहिक अवकाश' };
     if (checkedOut) {
       const h = hrs(todayRec.in_time, todayRec.out_time);
-      return { cls: 'pill-ok', text: `✅ Shift complete — ${h.toFixed(2)}h` };
+      return { cls: 'pill-ok', text: `✅ ${h.toFixed(2)}h Completed`, sub: 'Shift complete for today' };
     }
-    if (checkedIn) return { cls: 'pill-on', text: '🟠 On Duty — Check out when done' };
-    if (!inWindow) return { cls: 'pill-gray', text: '⏰ Entry window closed (6–8 AM only)' };
-    return { cls: 'pill-warn', text: '⬤ Window open — Check in now!' };
+    if (checkedIn) return { cls: 'pill-on', text: '🟠 On Duty', sub: `Since ${fmtT(todayRec.in_time)}` };
+    if (!inWindow) return { cls: 'pill-gray', text: '⏰ Window Closed', sub: '6:00 AM – 8:00 AM only' };
+    return { cls: 'pill-warn', text: '🟢 Window Open!', sub: 'Check in now to mark attendance' };
   };
   const pill = statusPill();
 
-  // Month stats
   const completed = monthRecs.filter(r => r.out_time);
   const totalH   = completed.reduce((a, r) => a + hrs(r.in_time, r.out_time), 0);
   const fullDays  = completed.filter(r => hrs(r.in_time, r.out_time) >= 8).length;
@@ -80,7 +91,7 @@ export default function StaffPage() {
       if (error) throw error;
       setTodayRec(data);
       await loadData();
-      toast.success('✅ Check-in successful! Attendance recorded.', { id: tId });
+      toast.success('✅ Check-in successful!', { id: tId });
     } catch (e) {
       toast.error('Check-in failed: ' + e.message, { id: tId });
     } finally {
@@ -98,7 +109,7 @@ export default function StaffPage() {
       setTodayRec(data);
       await loadData();
       const h = hrs(data.in_time, data.out_time);
-      toast.success(`✅ Check-out complete! ${h.toFixed(2)}h · ${money(pay(h))}`, { id: tId });
+      toast.success(`✅ ${h.toFixed(2)}h complete · ${money(pay(h))} earned`, { id: tId });
     } catch (e) {
       toast.error('Check-out failed: ' + e.message, { id: tId });
     } finally {
@@ -108,171 +119,212 @@ export default function StaffPage() {
 
   const monthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
+  if (loading) {
+    return (
+      <div className="staff-page">
+        <Header title="नगर निगम — उपस्थिति" subtitle="Staff Attendance Portal" />
+        <div className="page-loader">
+          <div className="page-loader-box">
+            <div className="spinner" />
+            <span>Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="staff-page">
       <Header title="नगर निगम — उपस्थिति" subtitle="Staff Attendance Portal" />
 
-      {loading ? (
-        <div className="page-loader">
-          <div className="page-loader-box">
-            <div className="spinner" />
-            <span>Loading your dashboard...</span>
-          </div>
-        </div>
-      ) : (
-        <main className="staff-main">
+      <motion.main
+        className="staff-main"
+        variants={stagger}
+        initial="hidden"
+        animate="visible"
+      >
 
-          {/* Hero card */}
-          <div className="hero-card">
-            <div className="hero-orb hero-orb1" />
-            <div className="hero-orb hero-orb2" />
-            <div className="hero-orb hero-orb3" />
-            <div className="hero-content">
-              <div className="hero-row">
-                <div className="hero-info">
-                  <div className="hero-name">{profile?.name}</div>
-                  <div className="hero-empid">EMP · {profile?.emp_id}</div>
-                </div>
+        {/* ── Hero Card ── */}
+        <motion.div className="hero-card" variants={fadeUp}>
+          <div className="hero-orb hero-orb1" />
+          <div className="hero-orb hero-orb2" />
+          <div className="hero-orb hero-orb3" />
+
+          <div className="hero-content">
+            <div className="hero-top-row">
+              <div>
+                <div className="hero-name">{profile?.name}</div>
+                <div className="hero-empid">EMP · {profile?.emp_id}</div>
               </div>
+              <div className="hero-badge-wrap">
+                <span className={`status-pill ${pill.cls}`}>
+                  <span className="pill-dot" />
+                  {pill.text}
+                </span>
+                <div className="pill-sub">{pill.sub}</div>
+              </div>
+            </div>
+
+            <div className="hero-clock-row">
               <div className="hero-clock">{timeStr}</div>
               <div className="hero-date">{dateStr}</div>
-              <span className={`status-pill ${pill.cls}`}>
-                <span className="pill-dot" />
-                {pill.text}
-              </span>
             </div>
           </div>
+        </motion.div>
 
-          {/* Banners */}
+        {/* ── Banners ── */}
+        <AnimatePresence>
           {isSunday && (
-            <div className="alert alert-warn">
+            <motion.div key="sun" className="alert alert-warn" variants={fadeUp} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
               <span className="alert-icon">🛑</span>
               <div>
-                <div className="alert-title">रविवार — साप्ताहिक अवकाश / Sunday Off</div>
-                <div>No attendance on Sundays. Have a good rest!</div>
+                <div className="alert-title">रविवार — साप्ताहिक अवकाश</div>
+                <div>No attendance on Sundays. Enjoy your day off!</div>
               </div>
-            </div>
+            </motion.div>
           )}
           {!isSunday && !checkedIn && !checkedOut && !inWindow && (
-            <div className="alert alert-info">
+            <motion.div key="win" className="alert alert-info" variants={fadeUp} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
               <span className="alert-icon">⏰</span>
               <div>
                 <div className="alert-title">Entry Window Closed</div>
                 <div>Check-in is only allowed between <strong>6:00 AM – 8:00 AM</strong>.</div>
               </div>
-            </div>
+            </motion.div>
           )}
-          {checkedIn && !isSunday && (
-            <div className="alert alert-info">
-              <span className="alert-icon">ℹ️</span>
-              <div>{fmtT(todayRec.in_time)} से ड्यूटी पर हैं। Check out करना न भूलें।</div>
-            </div>
+          {checkedIn && (
+            <motion.div key="duty" className="alert alert-info" variants={fadeUp} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
+              <span className="alert-icon">🔵</span>
+              <div>ड्यूटी पर: {fmtT(todayRec.in_time)} से। Check out करना न भूलें।</div>
+            </motion.div>
           )}
+        </AnimatePresence>
 
-          {/* Action buttons */}
-          <div className="action-grid">
-            <button
-              className="action-btn action-btn-in"
-              disabled={!canCheckIn || btnLoading === 'in'}
-              onClick={doCheckIn}
-            >
-              {btnLoading === 'in'
-                ? <span className="spinner spinner-sm" />
-                : <span className="action-icon">🟢</span>
-              }
-              <span className="action-label">Check In</span>
-              <span className="action-sub">उपस्थिति दर्ज करें</span>
-            </button>
-            <button
-              className="action-btn action-btn-out"
-              disabled={!canCheckOut || btnLoading === 'out'}
-              onClick={doCheckOut}
-            >
-              {btnLoading === 'out'
-                ? <span className="spinner spinner-sm" />
-                : <span className="action-icon">🔴</span>
-              }
-              <span className="action-label">Check Out</span>
-              <span className="action-sub">वापसी दर्ज करें</span>
-            </button>
+        {/* ── Action Buttons ── */}
+        <motion.div className="action-grid" variants={fadeUp}>
+          <motion.button
+            className="action-btn action-btn-in"
+            disabled={!canCheckIn || btnLoading === 'in'}
+            onClick={doCheckIn}
+            whileTap={{ scale: 0.95 }}
+            whileHover={canCheckIn ? { y: -4, boxShadow: '0 18px 40px rgba(21,128,61,0.5)' } : {}}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          >
+            {btnLoading === 'in'
+              ? <span className="spinner spinner-sm" />
+              : <span className="action-icon">🟢</span>
+            }
+            <span className="action-label">Check In</span>
+            <span className="action-sub">उपस्थिति दर्ज करें</span>
+          </motion.button>
+
+          <motion.button
+            className="action-btn action-btn-out"
+            disabled={!canCheckOut || btnLoading === 'out'}
+            onClick={doCheckOut}
+            whileTap={{ scale: 0.95 }}
+            whileHover={canCheckOut ? { y: -4, boxShadow: '0 18px 40px rgba(228,118,26,0.5)' } : {}}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          >
+            {btnLoading === 'out'
+              ? <span className="spinner spinner-sm" />
+              : <span className="action-icon">🔴</span>
+            }
+            <span className="action-label">Check Out</span>
+            <span className="action-sub">वापसी दर्ज करें</span>
+          </motion.button>
+        </motion.div>
+
+        {/* ── Month Stats ── */}
+        <motion.div className="panel" variants={fadeUp}>
+          <div className="panel-hdr">
+            <div className="panel-title">
+              <span className="panel-icon">📊</span>
+              Monthly Summary
+            </div>
+            <span className="panel-label">{monthLabel}</span>
+          </div>
+          <div className="month-stats">
+            <div className="stat-box">
+              <div className="stat-val">
+                <AnimatedNumber value={fullDays} />
+              </div>
+              <div className="stat-lbl">Full Days</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-val">
+                <AnimatedNumber value={shortDays} />
+              </div>
+              <div className="stat-lbl">Short Shifts</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-val">
+                <AnimatedNumber value={totalH} suffix="h" decimals={1} />
+              </div>
+              <div className="stat-lbl">Total Hours</div>
+            </div>
+            <div className="stat-box stat-box-green">
+              <div className="stat-val">
+                <AnimatedNumber value={earned} prefix="₹" decimals={0} />
+              </div>
+              <div className="stat-lbl">Earned / अर्जित</div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── Timeline ── */}
+        <motion.div className="panel" variants={fadeUp}>
+          <div className="panel-hdr">
+            <div className="panel-title">
+              <span className="panel-icon">📋</span>
+              Attendance History
+            </div>
+            <span className="panel-label">{monthRecs.length} records</span>
           </div>
 
-          {/* Month stats */}
-          <div className="panel">
-            <div className="panel-hdr">
-              <div className="panel-title">
-                <span className="panel-icon">📊</span>
-                इस माह का सारांश
-              </div>
-              <span className="panel-label">{monthLabel}</span>
+          {monthRecs.length === 0 ? (
+            <div className="empty-state">
+              <div style={{ fontSize: '2.2rem', marginBottom: '8px' }}>📭</div>
+              <div>इस माह कोई उपस्थिति नहीं</div>
             </div>
-            <div className="month-stats">
-              <div className="stat-box">
-                <div className="stat-val">{fullDays}</div>
-                <div className="stat-lbl">Full Days</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-val">{shortDays}</div>
-                <div className="stat-lbl">Short Shifts</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-val">{totalH.toFixed(1)}h</div>
-                <div className="stat-lbl">Total Hours</div>
-              </div>
-              <div className="stat-box stat-box-green">
-                <div className="stat-val">{money(earned)}</div>
-                <div className="stat-lbl">Earned / अर्जित</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Attendance Timeline */}
-          <div className="panel">
-            <div className="panel-hdr">
-              <div className="panel-title">
-                <span className="panel-icon">📋</span>
-                Attendance History
-              </div>
-              <span className="panel-label">{monthRecs.length} records</span>
-            </div>
-            {monthRecs.length === 0 ? (
-              <div className="empty-state">
-                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📭</div>
-                इस माह कोई उपस्थिति नहीं
-              </div>
-            ) : (
-              <div className="timeline">
-                {monthRecs.map(r => {
-                  const h = hrs(r.in_time, r.out_time);
-                  const full = h >= 8;
-                  const out = !!r.out_time;
-                  return (
-                    <div className="tl-item" key={r.id}>
-                      <div className={`tl-dot ${out && full ? 'tl-dot-ok' : out ? 'tl-dot-warn' : 'tl-dot-blue'}`}>
-                        {out && full ? '✅' : out ? '⚡' : '🔵'}
+          ) : (
+            <div className="timeline">
+              {monthRecs.map((r, i) => {
+                const h = hrs(r.in_time, r.out_time);
+                const full = h >= 8;
+                const out = !!r.out_time;
+                return (
+                  <motion.div
+                    key={r.id}
+                    className="tl-item"
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05, duration: 0.35 }}
+                  >
+                    <div className={`tl-dot ${out && full ? 'tl-dot-ok' : out ? 'tl-dot-warn' : 'tl-dot-blue'}`}>
+                      {out && full ? '✅' : out ? '⚡' : '🔵'}
+                    </div>
+                    <div className="tl-body">
+                      <div className="tl-main">
+                        {r.date}
+                        {!out && <span className="badge badge-blue">On Duty</span>}
+                        {out && full && <span className="badge badge-ok">✓ Full</span>}
+                        {out && !full && <span className="badge badge-warn">Short</span>}
                       </div>
-                      <div className="tl-body">
-                        <div className="tl-main">
-                          {r.date}
-                          {!out && <span className="badge badge-blue">On Duty</span>}
-                          {out && full && <span className="badge badge-ok">✓ Full Shift</span>}
-                          {out && !full && <span className="badge badge-warn">Short Shift</span>}
-                        </div>
-                        <div className="tl-sub">
-                          In: {fmtT(r.in_time)} &nbsp;|&nbsp; Out: {fmtT(r.out_time)}
-                          {out && ` · ${h.toFixed(2)}h · ${money(pay(h))}`}
-                          {!out && ' — In progress...'}
-                        </div>
+                      <div className="tl-sub">
+                        In: {fmtT(r.in_time)} &nbsp;|&nbsp; Out: {fmtT(r.out_time)}
+                        {out && ` · ${h.toFixed(2)}h · ${money(pay(h))}`}
+                        {!out && ' — In progress...'}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
 
-        </main>
-      )}
+      </motion.main>
     </div>
   );
 }
