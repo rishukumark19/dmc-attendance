@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup — Nagar Nigam</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      --navy:#0b1f38;--navy2:#14335a;--navy3:#1e4a7a;
+      --saff:#e8761a;--green:#138808;--green2:#15803d;
+      --ok:#16a34a;--okbg:#f0fdf4;--err:#dc2626;--errbg:#fef2f2;
+      --g100:#f1f5f9;--g200:#e2e8f0;--g400:#94a3b8;--g600:#475569;--g800:#1e293b;
+      --font:'Inter',system-ui,sans-serif;
+    }
+    body{font-family:var(--font);-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:var(--navy);position:relative;overflow:hidden;}
+    .blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:0.3;animation:drift 8s ease-in-out infinite alternate;}
+    .b1{width:300px;height:300px;background:var(--navy3);top:-80px;left:-80px;}
+    .b2{width:250px;height:250px;background:#1a6035;bottom:-60px;right:-60px;animation-delay:3s;}
+    @keyframes drift{from{transform:translate(0,0);}to{transform:translate(25px,15px);}}
+
+    .card{position:relative;z-index:2;width:100%;max-width:460px;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.45);animation:rise 0.4s cubic-bezier(0.16,1,0.3,1);}
+    @keyframes rise{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:translateY(0);}}
+    .tristrip{height:5px;background:linear-gradient(90deg,var(--saff) 33.3%,#fff 33.3% 66.6%,var(--green) 66.6%);}
+    .body{padding:28px 26px 32px;}
+
+    .hd{text-align:center;margin-bottom:24px;}
+    .logo{width:68px;height:68px;border-radius:50%;background:var(--g100);border:3px solid var(--saff);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:1.8rem;box-shadow:0 0 0 6px rgba(232,118,26,0.1);overflow:hidden;}
+    .logo img{width:100%;height:100%;object-fit:contain;border-radius:50%;}
+    .hd h2{font-size:1.2rem;font-weight:800;color:var(--navy);}
+    .hd p{font-size:0.78rem;color:var(--g400);margin-top:5px;line-height:1.5;}
+
+    /* steps */
+    .steps{display:flex;gap:0;margin-bottom:20px;}
+    .step{flex:1;text-align:center;position:relative;}
+    .step:not(:last-child)::after{content:'';position:absolute;top:13px;left:60%;width:80%;height:2px;background:var(--g200);}
+    .step.done::after{background:var(--ok);}
+    .step-dot{width:28px;height:28px;border-radius:50%;background:var(--g200);color:var(--g400);font-size:0.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 5px;position:relative;z-index:1;}
+    .step.active .step-dot{background:var(--navy2);color:#fff;}
+    .step.done .step-dot{background:var(--ok);color:#fff;}
+    .step-lbl{font-size:0.65rem;color:var(--g400);font-weight:600;text-transform:uppercase;letter-spacing:0.3px;}
+    .step.active .step-lbl{color:var(--navy);}
+
+    .section{display:none;animation:fadein 0.3s ease;}
+    .section.active{display:block;}
+    @keyframes fadein{from{opacity:0;}to{opacity:1;}}
+
+    .fg{margin-bottom:14px;}
+    .fl{display:block;font-size:0.72rem;font-weight:700;color:var(--g600);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px;}
+    .fi{width:100%;padding:11px 13px;border:1.5px solid var(--g200);border-radius:10px;font-size:0.9rem;font-family:var(--font);color:var(--g800);background:#fff;outline:none;transition:border-color 0.2s;}
+    .fi:focus{border-color:var(--navy3);box-shadow:0 0 0 3px rgba(30,74,122,0.1);}
+    .fi::placeholder{color:var(--g400);}
+
+    .btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:0.92rem;font-weight:700;font-family:var(--font);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;margin-top:6px;}
+    .btn-navy{background:linear-gradient(135deg,var(--navy2),var(--navy3));color:#fff;box-shadow:0 4px 14px rgba(20,51,90,0.3);}
+    .btn-navy:hover:not(:disabled){box-shadow:0 8px 22px rgba(20,51,90,0.4);transform:translateY(-1px);}
+    .btn-green{background:linear-gradient(135deg,var(--green2),var(--green));color:#fff;box-shadow:0 4px 14px rgba(21,128,61,0.3);}
+    .btn-green:hover:not(:disabled){box-shadow:0 8px 22px rgba(21,128,61,0.4);transform:translateY(-1px);}
+    .btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+
+    .spin{width:16px;height:16px;border:2.5px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:rot 0.65s linear infinite;display:none;}
+    @keyframes rot{to{transform:rotate(360deg);}}
+
+    #logBox{background:#0f172a;color:#7dd3fc;border-radius:10px;padding:12px 14px;font-family:monospace;font-size:0.78rem;line-height:1.9;min-height:60px;margin:14px 0;white-space:pre-wrap;display:none;}
+
+    .msg{border-radius:10px;padding:10px 13px;font-size:0.8rem;margin-top:12px;display:none;line-height:1.5;}
+    .msg.ok{background:var(--okbg);color:var(--ok);border:1px solid #86efac;display:flex;}
+    .msg.err{background:var(--errbg);color:var(--err);border:1px solid #fca5a5;display:flex;}
+
+    .info-box{background:var(--g100);border-radius:10px;padding:12px 14px;font-size:0.78rem;color:var(--g600);line-height:1.6;margin-bottom:14px;}
+    .info-box b{color:var(--navy);}
+
+    .creds-box{background:var(--okbg);border:1px solid #86efac;border-radius:12px;padding:14px 16px;margin-bottom:18px;}
+    .cr-title{font-size:0.8rem;font-weight:700;color:var(--ok);margin-bottom:10px;}
+    .cr-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(22,163,74,0.15);}
+    .cr-row:last-child{border-bottom:none;padding-bottom:0;}
+    .cr-lbl{font-size:0.7rem;font-weight:700;color:var(--g400);text-transform:uppercase;}
+    .cr-val{font-size:0.88rem;font-weight:700;color:var(--g800);font-family:monospace;}
+
+    .goto{display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:11px 22px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--green2),var(--green));color:#fff;font-size:0.88rem;font-weight:700;font-family:var(--font);cursor:pointer;text-decoration:none;box-shadow:0 4px 14px rgba(21,128,61,0.3);transition:all 0.2s;width:100%;justify-content:center;}
+    .goto:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(21,128,61,0.4);}
+
+    .foot{text-align:center;margin-top:16px;font-size:0.7rem;color:rgba(255,255,255,0.25);position:relative;z-index:2;}
+  </style>
+</head>
+<body>
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+
+<div class="card">
+  <div class="tristrip"></div>
+  <div class="body">
+
+    <div class="hd">
+      <div class="logo">
+        <img src="assets/logo.png" alt="Logo" onerror="this.parentElement.innerHTML='🏛️'">
+      </div>
+      <h2>First-Time Setup</h2>
+      <p>नगर निगम Attendance System<br>Set up your database and admin account</p>
+    </div>
+
+    <!-- Step indicators -->
+    <div class="steps">
+      <div class="step active" id="s1"><div class="step-dot">1</div><div class="step-lbl">Database</div></div>
+      <div class="step"        id="s2"><div class="step-dot">2</div><div class="step-lbl">Admin</div></div>
+      <div class="step"        id="s3"><div class="step-dot">3</div><div class="step-lbl">Done!</div></div>
+    </div>
+
+    <!-- SECTION 1: Create DB Tables -->
+    <div class="section active" id="sec1">
+      <div class="info-box">
+        <b>Step 1:</b> This will create the <b>staff</b> and <b>attendance</b> tables in your Supabase database automatically. Takes about 5 seconds.
+      </div>
+      <button class="btn btn-navy" id="btnDb" onclick="createDatabase()">
+        <span class="spin" id="dbSpin"></span>
+        <span id="dbTxt">🗄️ Create Database Tables</span>
+      </button>
+      <div id="logBox"></div>
+      <div class="msg" id="dbMsg"></div>
+    </div>
+
+    <!-- SECTION 2: Create Admin -->
+    <div class="section" id="sec2">
+      <div class="info-box">
+        <b>Step 2:</b> Create your admin account. Choose any <b>name</b> and <b>password</b> you like. The login username will always be <b>admin</b>.
+      </div>
+      <div class="fg">
+        <label class="fl">Your Name / आपका नाम</label>
+        <input type="text" id="adminName" class="fi" placeholder="e.g. Rishu Kumar" value="">
+      </div>
+      <div class="fg">
+        <label class="fl">Password (min 6 characters)</label>
+        <div style="position:relative;">
+          <input type="password" id="adminPass" class="fi" placeholder="Choose a strong password" style="padding-right:42px;">
+          <button onclick="togglePwd('adminPass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--g400);">👁</button>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Confirm Password</label>
+        <input type="password" id="adminPass2" class="fi" placeholder="Repeat password">
+      </div>
+      <div class="msg" id="adminMsg"></div>
+      <button class="btn btn-navy" id="btnAdmin" onclick="createAdmin()">
+        <span class="spin" id="adminSpin"></span>
+        <span id="adminTxt">🚀 Create Admin Account</span>
+      </button>
+    </div>
+
+    <!-- SECTION 3: Done -->
+    <div class="section" id="sec3">
+      <div class="creds-box">
+        <div class="cr-title">✅ Setup Complete — Your Login Details</div>
+        <div class="cr-row">
+          <span class="cr-lbl">👤 Username</span>
+          <span class="cr-val">admin</span>
+        </div>
+        <div class="cr-row">
+          <span class="cr-lbl">🔑 Password</span>
+          <span class="cr-val" id="finalPass">—</span>
+        </div>
+      </div>
+      <div class="info-box" style="margin-bottom:14px;">
+        ⚠️ <b>Delete this setup.html file</b> after logging in for the first time. Anyone with it can create an admin account.
+      </div>
+      <a href="index.html" class="goto">Go to Login Page →</a>
+    </div>
+
+  </div>
+</div>
+
+<div class="foot">© नगर निगम — Nagar Nigam Attendance System</div>
+
+<script type="module">
+  import { supabase } from './js/supabase-config.js';
+
+  const PAT     = 'YOUR_SUPABASE_PAT_HERE'; // ⚠️ removed for security — fill in your own
+  const PROJ    = 'dgzfabwvyzmtygmfsbfx';
+  const API     = `https://api.supabase.com/v1/projects/${PROJ}`;
+
+  // ── Helpers ──
+  const $  = id => document.getElementById(id);
+  const showMsg = (id, txt, type) => {
+    const el = $(id);
+    el.textContent = txt;
+    el.className = `msg ${type}`;
+  };
+  const log = txt => {
+    const b = $('logBox');
+    b.style.display = 'block';
+    b.textContent += (b.textContent ? '\n' : '') + txt;
+    b.scrollTop = b.scrollHeight;
+  };
+  const setStep = (n) => {
+    [1,2,3].forEach(i => {
+      const el = $(`s${i}`);
+      el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+      el.querySelector('.step-dot').textContent = i < n ? '✓' : i;
+    });
+    [1,2,3].forEach(i => {
+      $(`sec${i}`).className = 'section' + (i === n ? ' active' : '');
+    });
+  };
+
+  // ── Step 1: Create Database ──
+  const SQL = `
+CREATE TABLE IF NOT EXISTS public.staff (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID UNIQUE,
+  name TEXT NOT NULL,
+  emp_id TEXT UNIQUE NOT NULL,
+  role TEXT DEFAULT 'staff',
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.attendance (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  staff_user_id UUID,
+  emp_id TEXT NOT NULL,
+  staff_name TEXT NOT NULL,
+  date TEXT NOT NULL,
+  month_key TEXT NOT NULL,
+  in_time TIMESTAMPTZ DEFAULT now(),
+  out_time TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.staff ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname='auth_staff_all' AND tablename='staff') THEN
+    CREATE POLICY auth_staff_all ON public.staff FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname='auth_att_all' AND tablename='attendance') THEN
+    CREATE POLICY auth_att_all ON public.attendance FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.do_check_in(p_emp_id TEXT, p_staff_name TEXT)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE v public.attendance;
+BEGIN
+  INSERT INTO public.attendance (staff_user_id, emp_id, staff_name, date, month_key)
+  VALUES (
+    auth.uid(), p_emp_id, p_staff_name,
+    to_char((now() AT TIME ZONE 'Asia/Kolkata'), 'YYYY-MM-DD'),
+    to_char((now() AT TIME ZONE 'Asia/Kolkata'), 'YYYY-MM')
+  ) RETURNING * INTO v;
+  RETURN row_to_json(v);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.do_check_out(p_id UUID)
+RETURNS json LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE v public.attendance;
+BEGIN
+  UPDATE public.attendance SET out_time = now()
+  WHERE id = p_id AND staff_user_id = auth.uid()
+  RETURNING * INTO v;
+  RETURN row_to_json(v);
+END;
+$$;
+  `.trim();
+
+  window.createDatabase = async function() {
+    $('btnDb').disabled = true;
+    $('dbSpin').style.display = 'inline-block';
+    $('dbTxt').textContent = 'Creating tables...';
+    $('logBox').textContent = '';
+
+    try {
+      log('🔌 Connecting to Supabase...');
+      const resp = await fetch(`${API}/database/query`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${PAT}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: SQL })
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || JSON.stringify(data));
+      log('✅ Tables created: staff, attendance');
+      log('✅ Row Level Security enabled');
+      log('✅ Functions: do_check_in, do_check_out');
+      log('');
+      log('✅ Database ready!');
+      setTimeout(() => setStep(2), 800);
+    } catch(e) {
+      log('❌ Error: ' + e.message);
+      showMsg('dbMsg', '❌ ' + e.message, 'err');
+      $('btnDb').disabled = false;
+      $('dbSpin').style.display = 'none';
+      $('dbTxt').textContent = '🗄️ Try Again';
+    }
+  };
+
+  // ── Step 2: Create Admin ──
+  window.createAdmin = async function() {
+    const name  = $('adminName').value.trim();
+    const pass  = $('adminPass').value;
+    const pass2 = $('adminPass2').value;
+
+    if (!name)           { showMsg('adminMsg','⚠️ Please enter your name.','err'); return; }
+    if (pass.length < 6) { showMsg('adminMsg','⚠️ Password must be at least 6 characters.','err'); return; }
+    if (pass !== pass2)  { showMsg('adminMsg','⚠️ Passwords do not match!','err'); return; }
+
+    $('btnAdmin').disabled = true;
+    $('adminSpin').style.display = 'inline-block';
+    $('adminTxt').textContent = 'Creating account...';
+    showMsg('adminMsg','','');
+
+    const email = 'admin@nagarnigam.local';
+
+    try {
+      // Create user via Management API (bypasses email confirmation)
+      const resp = await fetch(`${API}/auth/users`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${PAT}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass, email_confirm: true })
+      });
+      const user = await resp.json();
+      if (!resp.ok) {
+        // User might already exist — try to delete and recreate
+        if (user.msg?.includes('already') || user.message?.includes('already')) {
+          showMsg('adminMsg', '⚠️ Admin already exists. Delete admin@nagarnigam.local from Supabase Auth users list and try again.', 'err');
+        } else {
+          throw new Error(user.message || user.msg || JSON.stringify(user));
+        }
+        $('btnAdmin').disabled = false;
+        $('adminSpin').style.display = 'none';
+        $('adminTxt').textContent = '🚀 Create Admin Account';
+        return;
+      }
+
+      const uid = user.id;
+
+      // Insert staff profile
+      const { error: dbErr } = await supabase.from('staff').upsert({
+        user_id: uid, name, emp_id: 'ADMIN', role: 'admin', active: true
+      }, { onConflict: 'emp_id' });
+      if (dbErr) throw dbErr;
+
+      $('finalPass').textContent = pass;
+      setStep(3);
+    } catch(e) {
+      showMsg('adminMsg', '❌ ' + e.message, 'err');
+      $('btnAdmin').disabled = false;
+      $('adminSpin').style.display = 'none';
+      $('adminTxt').textContent = '🚀 Try Again';
+    }
+  };
+
+  window.togglePwd = function(id, btn) {
+    const inp = $(id);
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.textContent = show ? '🙈' : '👁';
+  };
+</script>
+</body>
+</html>

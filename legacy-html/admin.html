@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — नगर निगम</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{--navy:#0b1f38;--navy2:#14335a;--navy3:#1e4a7a;--saff:#e8761a;--saff2:#f59429;--green:#138808;--green2:#15803d;--ok:#16a34a;--okbg:#f0fdf4;--err:#dc2626;--errbg:#fef2f2;--warn:#b45309;--warnbg:#fffbeb;--g100:#f1f5f9;--g200:#e2e8f0;--g300:#cbd5e1;--g400:#94a3b8;--g600:#475569;--g800:#1e293b;--font:'Inter','Noto Sans Devanagari',system-ui,sans-serif;}
+    html{font-family:var(--font);-webkit-font-smoothing:antialiased;}
+    body{background:var(--g100);color:var(--g800);min-height:100vh;}
+    /* ── Header ── */
+    .hdr{background:linear-gradient(135deg,var(--navy),var(--navy2) 70%,var(--navy3));color:#fff;position:sticky;top:0;z-index:100;box-shadow:0 2px 20px rgba(0,0,0,0.25);}
+    .tristrip{height:4px;background:linear-gradient(90deg,var(--saff) 33.3%,#fff 33.3% 66.6%,var(--green) 66.6%);}
+    .hdr-in{display:flex;align-items:center;gap:14px;padding:12px 20px;max-width:1200px;margin:0 auto;}
+    .hdr-logo{width:44px;height:44px;border-radius:50%;border:2px solid rgba(232,118,26,0.7);object-fit:contain;background:#fff;padding:3px;flex-shrink:0;}
+    .hdr-txt h1{font-size:1rem;font-weight:700;}
+    .hdr-txt p{font-size:0.72rem;opacity:0.6;margin-top:1px;}
+    .hdr-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+    .chip{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);border-radius:100px;padding:5px 12px 5px 5px;font-size:0.78rem;}
+    .av{width:28px;height:28px;border-radius:50%;background:var(--saff);color:#fff;font-weight:700;font-size:0.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .btn-out{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.22);color:#fff;border-radius:100px;padding:6px 14px;font-size:0.75rem;font-weight:600;cursor:pointer;font-family:var(--font);transition:background 0.2s;}
+    .btn-out:hover{background:rgba(255,255,255,0.2);}
+    /* ── Overlay ── */
+    .overlay{position:fixed;inset:0;z-index:999;background:rgba(11,31,56,0.6);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
+    .ov-box{background:#fff;border-radius:18px;padding:32px 40px;display:flex;flex-direction:column;align-items:center;gap:16px;font-weight:600;color:var(--navy);font-size:0.9rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+    .spinner{width:36px;height:36px;border:3px solid var(--g200);border-top-color:var(--navy2);border-radius:50%;animation:rot 0.7s linear infinite;}
+    @keyframes rot{to{transform:rotate(360deg);}}
+    /* ── Layout ── */
+    .main{max-width:1200px;margin:0 auto;padding:22px 16px 60px;}
+    /* ── Stats ── */
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
+    .sc{background:#fff;border-radius:16px;padding:20px;box-shadow:0 1px 10px rgba(0,0,0,0.07);border-left:4px solid var(--navy2);transition:transform 0.2s,box-shadow 0.2s;}
+    .sc:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.1);}
+    .sc.s-saff{border-left-color:var(--saff);}
+    .sc.s-grn{border-left-color:var(--green);}
+    .sc.s-navy{border-left-color:var(--navy);}
+    .sc-lbl{font-size:0.72rem;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:0.5px;}
+    .sc-val{font-size:1.9rem;font-weight:800;color:var(--navy);margin:8px 0 4px;line-height:1;}
+    .sc-sub{font-size:0.72rem;color:var(--g400);}
+    /* ── Tabs ── */
+    .tabs{display:flex;gap:4px;background:var(--g100);border-radius:16px;padding:5px;margin-bottom:22px;flex-wrap:wrap;}
+    .tab{flex:1;min-width:80px;padding:9px 14px;background:transparent;border:none;border-radius:10px;font-size:0.83rem;font-weight:600;color:var(--g400);cursor:pointer;font-family:var(--font);transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;}
+    .tab.active{background:#fff;color:var(--navy);box-shadow:0 2px 8px rgba(0,0,0,0.08);}
+    .sec{display:none;animation:fadein 0.22s ease;}
+    .sec.active{display:block;}
+    @keyframes fadein{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+    /* ── Panel ── */
+    .panel{background:#fff;border-radius:16px;box-shadow:0 1px 10px rgba(0,0,0,0.07);padding:22px;margin-bottom:18px;}
+    .phdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+    .ptitle{font-size:0.92rem;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;}
+    .ptic{width:30px;height:30px;border-radius:8px;background:var(--g100);display:flex;align-items:center;justify-content:center;font-size:0.9rem;}
+    /* ── Buttons ── */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border:none;border-radius:10px;font-size:0.82rem;font-weight:600;font-family:var(--font);cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+    .btn:disabled{opacity:0.4;cursor:not-allowed;}
+    .btn-navy{background:linear-gradient(135deg,var(--navy2),var(--navy3));color:#fff;box-shadow:0 3px 10px rgba(20,51,90,0.25);}
+    .btn-navy:hover:not(:disabled){box-shadow:0 6px 16px rgba(20,51,90,0.35);transform:translateY(-1px);}
+    .btn-grn{background:linear-gradient(135deg,var(--green2),var(--green));color:#fff;box-shadow:0 3px 10px rgba(21,128,61,0.25);}
+    .btn-grn:hover:not(:disabled){box-shadow:0 6px 16px rgba(21,128,61,0.35);transform:translateY(-1px);}
+    .btn-saff{background:linear-gradient(135deg,#c45f0d,var(--saff));color:#fff;box-shadow:0 3px 10px rgba(228,118,26,0.25);}
+    .btn-red{background:linear-gradient(135deg,#991b1b,var(--err));color:#fff;}
+    .btn-red:hover:not(:disabled){transform:translateY(-1px);}
+    .btn-ghost{background:transparent;color:var(--g600);border:1.5px solid var(--g200);}
+    .btn-ghost:hover{background:var(--g100);}
+    .btn-sm{padding:6px 12px;font-size:0.76rem;}
+    /* ── Filters ── */
+    .fbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
+    .finput{padding:8px 12px;border:1.5px solid var(--g200);border-radius:10px;font-size:0.82rem;font-family:var(--font);color:var(--g800);background:#fff;outline:none;transition:border-color 0.2s;}
+    .finput:focus{border-color:var(--navy3);}
+    /* ── Table ── */
+    .tbl-wrap{overflow-x:auto;border-radius:10px;}
+    table{width:100%;border-collapse:collapse;font-size:0.83rem;}
+    thead{background:var(--g100);}
+    th{text-align:left;padding:11px 14px;font-size:0.7rem;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;}
+    td{padding:12px 14px;border-bottom:1px solid var(--g100);vertical-align:middle;}
+    tbody tr:last-child td{border-bottom:none;}
+    tbody tr:hover{background:#fafbff;}
+    .empty{text-align:center;color:var(--g400);padding:32px;font-size:0.83rem;}
+    /* Staff cell */
+    .scell{display:flex;align-items:center;gap:10px;}
+    .sav{width:34px;height:34px;border-radius:50%;background:var(--navy2);color:#fff;font-weight:700;font-size:0.8rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .sname{font-weight:600;font-size:0.85rem;color:var(--navy);}
+    .sid{font-size:0.72rem;color:var(--g400);}
+    .code{background:var(--g100);padding:2px 8px;border-radius:5px;font-size:0.78rem;font-family:monospace;}
+    /* Badges */
+    .bdg{display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:0.68rem;font-weight:700;white-space:nowrap;}
+    .bdg-ok{background:var(--okbg);color:var(--ok);}
+    .bdg-warn{background:var(--warnbg);color:var(--warn);}
+    .bdg-blue{background:#eff6ff;color:#1d4ed8;}
+    .bdg-gray{background:var(--g100);color:var(--g600);}
+    .sal-val{font-weight:700;color:var(--ok);font-size:0.9rem;}
+    /* Report bar */
+    .rep-bar{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-radius:16px;padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:14px;margin-bottom:20px;}
+    .rb-val{font-size:1.7rem;font-weight:800;}
+    .rb-lbl{font-size:0.68rem;opacity:0.6;margin-top:3px;text-transform:uppercase;letter-spacing:0.4px;}
+    /* Modal */
+    .modal-bg{display:none;position:fixed;inset:0;z-index:200;background:rgba(11,31,56,0.55);align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);}
+    .modal-bg.open{display:flex;}
+    .modal{background:#fff;border-radius:22px;padding:30px;width:100%;max-width:460px;box-shadow:0 24px 60px rgba(0,0,0,0.3);animation:rise 0.3s cubic-bezier(0.16,1,0.3,1);}
+    @keyframes rise{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+    .modal h3{font-size:1.05rem;font-weight:800;color:var(--navy);margin-bottom:20px;}
+    .fg{margin-bottom:15px;}
+    .fl{display:block;font-size:0.72rem;font-weight:700;color:var(--g600);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px;}
+    .fi{width:100%;padding:11px 13px;border:1.5px solid var(--g200);border-radius:10px;font-size:0.88rem;font-family:var(--font);color:var(--g800);background:#fff;outline:none;transition:border-color 0.2s;}
+    .fi:focus{border-color:var(--navy3);box-shadow:0 0 0 3px rgba(30,74,122,0.1);}
+    .modal-ft{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;}
+    .mmsg{margin-top:12px;font-size:0.8rem;border-radius:10px;padding:10px 12px;display:none;}
+    .mm-ok{background:var(--okbg);color:var(--ok);display:block;}
+    .mm-err{background:var(--errbg);color:var(--err);display:block;}
+    .mini-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:rot 0.65s linear infinite;display:none;}
+    /* Absent pills */
+    .absent-pill{display:flex;align-items:center;gap:7px;background:var(--errbg);border:1px solid #fca5a5;border-radius:100px;padding:5px 14px 5px 5px;}
+    .aav{width:26px;height:26px;border-radius:50%;background:var(--err);color:#fff;font-weight:700;font-size:0.7rem;display:flex;align-items:center;justify-content:center;}
+    @media(max-width:768px){.stats{grid-template-columns:1fr 1fr;}.tabs{gap:2px;}.tab{padding:8px 8px;font-size:0.76rem;}}
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="overlay" id="overlay">
+  <div class="ov-box"><div class="spinner"></div><span>Loading dashboard...</span></div>
+</div>
+
+<!-- Add Staff Modal -->
+<div class="modal-bg" id="addModal">
+  <div class="modal">
+    <h3>➕ Add New Staff / नया कर्मचारी</h3>
+    <div class="fg">
+      <label class="fl">Full Name / पूरा नाम</label>
+      <input type="text" id="nName" class="fi" placeholder="e.g. Ramesh Kumar" maxlength="80">
+    </div>
+    <div class="fg">
+      <label class="fl">Employee ID / कर्मचारी क्रमांक</label>
+      <input type="text" id="nEmpId" class="fi" placeholder="e.g. EMP001" maxlength="20">
+    </div>
+    <div class="fg">
+      <label class="fl">Login PIN (4–8 digits) / लॉगिन पिन</label>
+      <input type="text" id="nPin" class="fi" placeholder="e.g. 1234" maxlength="8" inputmode="numeric">
+    </div>
+    <div class="mmsg" id="mmsg"></div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-navy" id="saveBtn" onclick="saveStaff()">
+        <span class="mini-spin" id="saveSpin"></span>
+        <span id="saveTxt">Save Staff</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header class="hdr">
+  <div class="tristrip"></div>
+  <div class="hdr-in">
+    <img src="assets/logo.png" class="hdr-logo" alt="Logo" onerror="this.style.display='none'">
+    <div class="hdr-txt"><h1>नगर निगम — Admin Dashboard</h1><p>Attendance &amp; Salary Management</p></div>
+    <div class="hdr-r">
+      <div class="chip"><div class="av" style="background:var(--saff);">🛡</div><span id="adminName">Admin</span></div>
+      <button class="btn-out" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+</header>
+
+<main class="main" id="mainWrap" style="display:none;">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="sc s-navy"><div class="sc-lbl">Total Staff</div><div class="sc-val" id="stStaff">—</div><div class="sc-sub">Registered employees</div></div>
+    <div class="sc s-grn"><div class="sc-lbl">Today Present / आज</div><div class="sc-val" id="stToday">—</div><div class="sc-sub" id="stDate">—</div></div>
+    <div class="sc s-saff"><div class="sc-lbl">Full Shifts (Month)</div><div class="sc-val" id="stFull">—</div><div class="sc-sub">Completed 8h shifts</div></div>
+    <div class="sc"><div class="sc-lbl">Salary Payable / वेतन</div><div class="sc-val" id="stSal" style="font-size:1.4rem;">—</div><div class="sc-sub" id="stSalMon">This month</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-s="staff"   onclick="switchTab('staff')">👥 Staff</button>
+    <button class="tab"        data-s="today"   onclick="switchTab('today')">📅 Today</button>
+    <button class="tab"        data-s="records" onclick="switchTab('records')">📋 Records</button>
+    <button class="tab"        data-s="salary"  onclick="switchTab('salary')">💰 Salary</button>
+  </div>
+
+  <!-- ── Staff ── -->
+  <div class="sec active" id="sec-staff">
+    <div class="panel">
+      <div class="phdr">
+        <div class="ptitle"><div class="ptic">👥</div>All Staff / सभी कर्मचारी</div>
+        <button class="btn btn-navy" onclick="document.getElementById('addModal').classList.add('open')">+ Add Staff</button>
+      </div>
+      <div class="fbar">
+        <input class="finput" id="staffSearch" placeholder="🔍 Search name or ID..." oninput="renderStaff()" style="min-width:200px;">
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Employee</th><th>ID</th><th>Today</th><th>Action</th></tr></thead>
+          <tbody id="staffTbl"><tr><td colspan="4" class="empty"><div class="spinner" style="margin:auto;width:24px;height:24px;border-width:2px;"></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Today ── -->
+  <div class="sec" id="sec-today">
+    <div class="panel">
+      <div class="phdr">
+        <div class="ptitle"><div class="ptic">📅</div>Today's Attendance</div>
+        <span id="todayLbl" style="font-size:0.78rem;color:var(--g400);"></span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Employee</th><th>Check-In</th><th>Check-Out</th><th>Hours</th><th>Status</th><th>Earned</th></tr></thead>
+          <tbody id="todayTbl"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div style="margin-top:20px;">
+        <div class="ptitle" style="margin-bottom:12px;"><div class="ptic">❌</div>Not Present Today</div>
+        <div id="absentList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Records ── -->
+  <div class="sec" id="sec-records">
+    <div class="panel">
+      <div class="phdr"><div class="ptitle"><div class="ptic">📋</div>Attendance Records</div></div>
+      <div class="fbar">
+        <input  class="finput" id="recSearch" placeholder="🔍 Search staff..." oninput="filterRecs()" style="min-width:160px;">
+        <select class="finput" id="recMonth"  onchange="loadRecs()"></select>
+        <select class="finput" id="recStatus" onchange="filterRecs()">
+          <option value="">All Status</option>
+          <option>Full Shift</option><option>Short Shift</option><option>On Duty</option>
+        </select>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Employee</th><th>In</th><th>Out</th><th>Hours</th><th>Status</th><th>Earned</th></tr></thead>
+          <tbody id="recsTbl"><tr><td colspan="7" class="empty">Select a month above</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Salary ── -->
+  <div class="sec" id="sec-salary">
+    <div class="panel">
+      <div class="phdr">
+        <div class="ptitle"><div class="ptic">💰</div>Monthly Salary Report</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <select class="finput" id="salMonth" onchange="loadSalary()"></select>
+          <button class="btn btn-grn" onclick="downloadCSV()">⬇ Download CSV</button>
+        </div>
+      </div>
+      <div class="rep-bar" id="repBar" style="display:none;">
+        <div><div class="rb-val" id="rsStaff">0</div><div class="rb-lbl">Staff</div></div>
+        <div><div class="rb-val" id="rsFull">0</div><div class="rb-lbl">Full Shifts</div></div>
+        <div><div class="rb-val" id="rsHrs">0h</div><div class="rb-lbl">Total Hours</div></div>
+        <div><div class="rb-val" id="rsPay">₹0</div><div class="rb-lbl">Total Payable</div></div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Employee</th><th>Emp ID</th><th>Full Days</th><th>Short Shifts</th><th>Total Hours</th><th>Salary / वेतन</th></tr></thead>
+          <tbody id="salTbl"><tr><td colspan="6" class="empty">Select a month above</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script type="module">
+  import { supabase, makeTempClient } from './js/supabase-config.js';
+
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2,'0');
+  const RATE = 75;
+  const money = n => '₹' + n.toLocaleString('en-IN',{maximumFractionDigits:2});
+  const hrs = (i,o) => (i&&o) ? Math.max(0,(new Date(o)-new Date(i))/3600000) : 0;
+  const pay = h => Math.round(Math.min(8,h)*RATE*100)/100;
+  const fmtT = iso => { if(!iso) return'—'; const d=new Date(iso); return`${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const todayIST = () => { const d=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'})); return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+
+  let allStaff=[], todayRecs=[], allRecs=[], salRecs=[];
+
+  // ── Month selector helper ──
+  function fillMonths(ids) {
+    const now=new Date(); let html='';
+    for(let i=0;i<12;i++){
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const v=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+      const l=d.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+      html+=`<option value="${v}"${i===0?' selected':''}>${l}</option>`;
+    }
+    ids.forEach(id=>{ const el=$(id); if(el) el.innerHTML=html; });
+  }
+
+  // ── Auth guard ──
+  const { data:{ session } } = await supabase.auth.getSession();
+  if (!session) { window.location.href='index.html'; }
+
+  const uid = session.user.id;
+  const { data: me } = await supabase.from('staff').select('*').eq('user_id', uid).single();
+  if (!me || me.role !== 'admin') { await supabase.auth.signOut(); window.location.href='index.html'; }
+
+  $('adminName').textContent = me.name || 'Admin';
+  fillMonths(['recMonth','salMonth']);
+
+  await Promise.all([loadStaff(), loadTodayRecs(), loadSalary()]);
+  updateStats();
+  renderStaff(); renderToday(); renderSalary();
+  $('todayLbl').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  $('stDate').textContent   = new Date().toLocaleDateString('en-IN',{month:'short',day:'numeric'});
+  $('overlay').style.display  = 'none';
+  $('mainWrap').style.display = 'block';
+
+  // ── Data loaders ──
+  async function loadStaff() {
+    const { data } = await supabase.from('staff').select('*').eq('active', true).neq('role','admin').order('name');
+    allStaff = data || [];
+    $('stStaff').textContent = allStaff.length;
+  }
+
+  async function loadTodayRecs() {
+    const { data } = await supabase.from('attendance').select('*').eq('date', todayIST());
+    todayRecs = data || [];
+    $('stToday').textContent = todayRecs.length;
+  }
+
+  async function loadSalary() {
+    const month = $('salMonth').value;
+    const { data } = await supabase.from('attendance').select('*').eq('month_key', month);
+    salRecs = data || [];
+    updateStats(); renderSalary();
+  }
+  window.loadSalary = loadSalary;
+
+  async function loadRecs() {
+    const month = $('recMonth').value;
+    const { data } = await supabase.from('attendance').select('*').eq('month_key', month).order('in_time',{ascending:false});
+    allRecs = data || [];
+    filterRecs();
+  }
+  window.loadRecs = loadRecs;
+
+  // ── Stats update ──
+  function updateStats() {
+    const month = $('salMonth').value;
+    const d = new Date(month + '-01');
+    $('stSalMon').textContent = d.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+    const full  = salRecs.filter(r=>r.out_time && hrs(r.in_time,r.out_time)>=8).length;
+    const total = salRecs.filter(r=>r.out_time).reduce((s,r)=>s+pay(hrs(r.in_time,r.out_time)),0);
+    $('stFull').textContent = full;
+    $('stSal').textContent  = money(total);
+  }
+
+  // ── Render Staff tab ──
+  function renderStaff() {
+    const term = ($('staffSearch')?.value||'').toLowerCase();
+    const rows = allStaff.filter(s=>!term || s.name?.toLowerCase().includes(term) || s.emp_id?.toLowerCase().includes(term));
+    $('staffTbl').innerHTML = rows.length ? rows.map(s=>{
+      const init = (s.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      const present = todayRecs.some(r=>r.staff_user_id===s.user_id);
+      return`<tr>
+        <td><div class="scell"><div class="sav">${init}</div><div><div class="sname">${esc(s.name)}</div></div></div></td>
+        <td><span class="code">${esc(s.emp_id)}</span></td>
+        <td>${present?'<span class="bdg bdg-ok">✅ Present</span>':'<span class="bdg bdg-gray">Absent</span>'}</td>
+        <td><button class="btn btn-red btn-sm" onclick="removeStaff('${s.id}','${esc(s.name)}')">Remove</button></td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="4" class="empty">No staff found</td></tr>`;
+  }
+  window.renderStaff = renderStaff;
+
+  // ── Render Today tab ──
+  function renderToday() {
+    $('todayTbl').innerHTML = todayRecs.length ? todayRecs.map(r=>{
+      const h = hrs(r.in_time, r.out_time);
+      const st = !r.out_time?'On Duty':h>=8?'Full Shift':'Short Shift';
+      const bc = !r.out_time?'bdg-blue':h>=8?'bdg-ok':'bdg-warn';
+      return`<tr>
+        <td><div class="scell"><div class="sav" style="background:var(--navy2);">${(r.staff_name||'?')[0].toUpperCase()}</div><div><div class="sname">${esc(r.staff_name||'')}</div><div class="sid">${esc(r.emp_id||'')}</div></div></div></td>
+        <td>${fmtT(r.in_time)}</td><td>${fmtT(r.out_time)}</td>
+        <td>${r.out_time?h.toFixed(2)+'h':'—'}</td>
+        <td><span class="bdg ${bc}">${st}</span></td>
+        <td class="sal-val">${r.out_time?money(pay(h)):'—'}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="6" class="empty">No attendance yet today</td></tr>`;
+
+    const presentIds = new Set(todayRecs.map(r=>r.staff_user_id));
+    const absent = allStaff.filter(s=>!presentIds.has(s.user_id));
+    $('absentList').innerHTML = absent.map(s=>{
+      const init=(s.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      return`<div class="absent-pill"><div class="aav">${init}</div><span style="font-size:0.78rem;font-weight:600;color:var(--err);">${esc(s.name)}</span></div>`;
+    }).join('') || '<span style="font-size:0.82rem;color:var(--g400);">All staff are present! 🎉</span>';
+  }
+
+  // ── Render Records tab ──
+  window.filterRecs = function() {
+    const term   = ($('recSearch')?.value||'').toLowerCase();
+    const status = $('recStatus')?.value||'';
+    let rows = allRecs;
+    if (term)   rows = rows.filter(r=>(r.staff_name||'').toLowerCase().includes(term)||(r.emp_id||'').toLowerCase().includes(term));
+    if (status) rows = rows.filter(r=>{
+      const h=hrs(r.in_time,r.out_time);
+      const s=!r.out_time?'On Duty':h>=8?'Full Shift':'Short Shift';
+      return s===status;
+    });
+    $('recsTbl').innerHTML = rows.length ? rows.map(r=>{
+      const h=hrs(r.in_time,r.out_time);
+      const st=!r.out_time?'On Duty':h>=8?'Full Shift':'Short Shift';
+      const bc=!r.out_time?'bdg-blue':h>=8?'bdg-ok':'bdg-warn';
+      const isToday=r.date===todayIST();
+      return`<tr>
+        <td>${r.date}${isToday?' <span class="bdg bdg-blue" style="font-size:0.6rem;">Today</span>':''}</td>
+        <td><div class="scell"><div class="sav" style="width:28px;height:28px;font-size:0.72rem;">${(r.staff_name||'?')[0].toUpperCase()}</div><div><div class="sname">${esc(r.staff_name||'')}</div><div class="sid">${esc(r.emp_id||'')}</div></div></div></td>
+        <td>${fmtT(r.in_time)}</td><td>${fmtT(r.out_time)}</td>
+        <td>${r.out_time?h.toFixed(2)+'h':'—'}</td>
+        <td><span class="bdg ${bc}">${st}</span></td>
+        <td class="sal-val">${r.out_time?money(pay(h)):'—'}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="7" class="empty">No records found</td></tr>`;
+  };
+
+  // ── Render Salary tab ──
+  function renderSalary() {
+    const rows = allStaff.map(s=>{
+      const recs = salRecs.filter(r=>r.staff_user_id===s.user_id && r.out_time);
+      const totalH = recs.reduce((a,r)=>a+Math.min(8,hrs(r.in_time,r.out_time)),0);
+      const full   = recs.filter(r=>hrs(r.in_time,r.out_time)>=8).length;
+      const sht    = recs.filter(r=>hrs(r.in_time,r.out_time)<8).length;
+      const total  = recs.reduce((a,r)=>a+pay(hrs(r.in_time,r.out_time)),0);
+      return {s,totalH,full,sht,total};
+    });
+    const totPay  = rows.reduce((a,r)=>a+r.total,0);
+    const totH    = rows.reduce((a,r)=>a+r.totalH,0);
+    const totFull = rows.reduce((a,r)=>a+r.full,0);
+    $('rsStaff').textContent = allStaff.length;
+    $('rsFull').textContent  = totFull;
+    $('rsHrs').textContent   = totH.toFixed(1)+'h';
+    $('rsPay').textContent   = money(totPay);
+    $('repBar').style.display = allStaff.length ? 'grid' : 'none';
+    $('salTbl').innerHTML = rows.length ? rows.map(({s,totalH,full,sht,total})=>{
+      const init=(s.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      return`<tr>
+        <td><div class="scell"><div class="sav">${init}</div><div class="sname">${esc(s.name)}</div></div></td>
+        <td><span class="code">${esc(s.emp_id||'')}</span></td>
+        <td>${full}</td><td>${sht}</td><td>${totalH.toFixed(2)}h</td>
+        <td class="sal-val" style="font-size:1rem;">${money(total)}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="6" class="empty">No data for this month</td></tr>`;
+  }
+
+  // ── Add Staff ──
+  window.saveStaff = async function() {
+    const name  = $('nName').value.trim();
+    const empId = $('nEmpId').value.trim().toUpperCase();
+    const pin   = $('nPin').value.trim();
+    if (!name||!empId||!pin) { showMM('⚠️ Please fill all fields.','err'); return; }
+    if (pin.length<4)        { showMM('⚠️ PIN must be at least 4 digits.','err'); return; }
+    if (allStaff.some(s=>s.emp_id?.toUpperCase()===empId)) { showMM('⚠️ Employee ID already exists!','err'); return; }
+
+    $('saveBtn').disabled=true; $('saveSpin').style.display='inline-block'; $('saveTxt').textContent='Creating...';
+    try {
+      const email = `${empId.toLowerCase()}@nagarnigam.local`;
+      // Create auth user via a temp client to preserve admin session
+      const tmp = makeTempClient();
+      const { data: signUpData, error: signUpErr } = await tmp.auth.signUp({ email, password: pin });
+      if (signUpErr) throw signUpErr;
+
+      const newUid = signUpData.user?.id;
+      if (!newUid) throw new Error('Could not create user. Make sure "Confirm email" is DISABLED in Supabase Auth settings.');
+
+      // Insert staff profile using admin's session
+      const { error: dbErr } = await supabase.from('staff').insert({
+        user_id: newUid, name, emp_id: empId, role:'staff', active:true
+      });
+      if (dbErr) throw dbErr;
+
+      await loadStaff(); renderStaff(); updateStats();
+      $('nName').value=$('nEmpId').value=$('nPin').value='';
+      showMM(`✅ ${name} added successfully!`,'ok');
+      setTimeout(closeModal, 1800);
+    } catch(e) {
+      showMM('❌ '+e.message,'err');
+    } finally {
+      $('saveBtn').disabled=false; $('saveSpin').style.display='none'; $('saveTxt').textContent='Save Staff';
+    }
+  };
+
+  // ── Remove Staff ──
+  window.removeStaff = async function(id, name) {
+    if (!confirm(`Remove ${name}? Their attendance history will remain.`)) return;
+    const { error } = await supabase.from('staff').update({active:false}).eq('id',id);
+    if (error) { alert('Error: '+error.message); return; }
+    await loadStaff(); renderStaff(); updateStats();
+  };
+
+  // ── CSV Export ──
+  window.downloadCSV = function() {
+    const month = $('salMonth').value;
+    const lines = [['Employee ID','Name','Full Days','Short Shifts','Total Hours','Salary INR']];
+    allStaff.forEach(s=>{
+      const recs = salRecs.filter(r=>r.staff_user_id===s.user_id&&r.out_time);
+      const h    = recs.reduce((a,r)=>a+Math.min(8,hrs(r.in_time,r.out_time)),0);
+      const full = recs.filter(r=>hrs(r.in_time,r.out_time)>=8).length;
+      const sht  = recs.length-full;
+      const tot  = recs.reduce((a,r)=>a+pay(hrs(r.in_time,r.out_time)),0);
+      lines.push([s.emp_id,s.name,full,sht,h.toFixed(2),tot.toFixed(2)]);
+    });
+    const csv = '\ufeff'+lines.map(l=>l.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    a.download = `nagar-nigam-salary-${month}.csv`; a.click();
+  };
+
+  // ── Tab switching ──
+  window.switchTab = function(s) {
+    document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.s===s));
+    document.querySelectorAll('.sec').forEach(c=>c.classList.toggle('active',c.id===`sec-${s}`));
+    if (s==='records' && !allRecs.length) loadRecs();
+  };
+
+  // ── Modal helpers ──
+  function showMM(txt,t) {
+    const el=$('mmsg'); el.textContent=txt;
+    el.className='mmsg '+(t==='ok'?'mm-ok':'mm-err');
+  }
+  window.closeModal = function() {
+    $('addModal').classList.remove('open');
+    $('mmsg').className='mmsg'; $('mmsg').textContent='';
+  };
+  $('addModal').addEventListener('click', e=>{ if(e.target.id==='addModal') closeModal(); });
+
+  // ── Logout ──
+  window.doLogout = async function() {
+    if (!confirm('Logout?')) return;
+    await supabase.auth.signOut(); window.location.href='index.html';
+  };
+</script>
+</body>
+</html>

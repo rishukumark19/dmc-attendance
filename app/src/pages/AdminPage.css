@@ -1,0 +1,83 @@
+.admin-page { min-height: 100vh; background: var(--g50); }
+.admin-main { max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; display: flex; flex-direction: column; gap: 20px; }
+
+/* Stats */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.stat-card {
+  background: #fff; border-radius: var(--radius-lg); padding: 22px 20px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--g100);
+  border-left: 4px solid var(--navy2);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.stat-navy  { border-left-color: var(--navy2); }
+.stat-green { border-left-color: var(--green); }
+.stat-saff  { border-left-color: var(--saff); }
+.sc-lbl { font-size: 0.72rem; font-weight: 700; color: var(--g400); text-transform: uppercase; letter-spacing: 0.5px; }
+.sc-val { font-size: 2rem; font-weight: 800; color: var(--navy); margin: 8px 0 4px; line-height: 1; }
+.sc-val-sm { font-size: 1.45rem; }
+.sc-sub { font-size: 0.72rem; color: var(--g400); }
+
+/* Tabs */
+.admin-tabs { display: flex; gap: 4px; background: var(--g100); border-radius: var(--radius-lg); padding: 5px; flex-wrap: wrap; }
+.admin-tab {
+  flex: 1; min-width: 80px; padding: 10px 16px;
+  background: transparent; border: none; border-radius: 10px;
+  font-size: 0.84rem; font-weight: 600; color: var(--g400);
+  cursor: pointer; font-family: var(--font); transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap;
+}
+.admin-tab.active { background: #fff; color: var(--navy); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+/* Panel */
+.panel { background: #fff; border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); border: 1px solid var(--g100); }
+.panel-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+.panel-title { font-size: 0.92rem; font-weight: 700; color: var(--navy); display: flex; align-items: center; gap: 8px; }
+.panel-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--g100); display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+.panel-label { font-size: 0.74rem; color: var(--g400); }
+.filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+
+/* Salary value */
+.sal-val { font-weight: 700; color: var(--ok); }
+
+/* Report bar */
+.rep-bar {
+  background: linear-gradient(135deg, var(--navy), var(--navy2));
+  color: #fff; border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  margin-bottom: 20px;
+}
+.rb-val { font-size: 1.75rem; font-weight: 800; }
+.rb-lbl { font-size: 0.68rem; opacity: 0.6; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* Absent section */
+.absent-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--g100); }
+.absent-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.absent-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--errbg); border: 1px solid #fca5a5;
+  border-radius: 100px; padding: 5px 14px 5px 5px;
+  font-size: 0.78rem; font-weight: 600; color: var(--err);
+}
+.absent-av {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--err); color: #fff;
+  font-weight: 700; font-size: 0.7rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.empty-text { font-size: 0.83rem; color: var(--g400); }
+
+/* Modal extras */
+.modal-msg { margin-top: 12px; font-size: 0.8rem; border-radius: var(--radius); padding: 10px 12px; }
+.modal-msg-ok  { background: var(--okbg);   color: var(--ok);  }
+.modal-msg-err { background: var(--errbg);  color: var(--err); }
+
+@media (max-width: 900px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .admin-tabs { gap: 2px; }
+  .admin-tab { padding: 8px 8px; font-size: 0.76rem; }
+  .rep-bar { grid-template-columns: 1fr 1fr; }
+  .admin-main { padding: 16px 12px 60px; }
+}

@@ -1,0 +1,51 @@
+.hdr {
+  background: linear-gradient(135deg, var(--navy), var(--navy2) 70%, var(--navy3));
+  color: #fff;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 24px rgba(0,0,0,0.28);
+}
+.hdr-inner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 24px;
+  max-width: 1280px; margin: 0 auto;
+}
+.hdr-logo {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 2px solid rgba(232,118,26,0.8);
+  object-fit: contain; background: #fff; padding: 3px;
+  flex-shrink: 0;
+}
+.hdr-text h1 { font-size: 1.02rem; font-weight: 700; }
+.hdr-text p  { font-size: 0.7rem; opacity: 0.6; margin-top: 1px; }
+.hdr-right {
+  margin-left: auto; display: flex; align-items: center; gap: 12px;
+}
+.hdr-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 100px;
+  padding: 5px 14px 5px 5px;
+  font-size: 0.78rem;
+}
+.hdr-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--saff); color: #fff;
+  font-weight: 700; font-size: 0.75rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.btn-logout {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #fff; border-radius: 100px;
+  padding: 7px 16px; font-size: 0.76rem; font-weight: 600;
+  cursor: pointer; font-family: var(--font);
+  transition: background 0.2s;
+}
+.btn-logout:hover { background: rgba(255,255,255,0.22); }
+
+@media (max-width: 600px) {
+  .hdr-inner { padding: 10px 16px; gap: 10px; }
+  .hdr-text h1 { font-size: 0.9rem; }
+}

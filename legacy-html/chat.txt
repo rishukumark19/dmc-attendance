@@ -1,0 +1,68 @@
+
+आपकी Staff Attendance Website + Admin Dashboard + Automatic Salary Calculation का पहला working version तैयार है।
+
+Website तैयार है
+
+Download Complete Website (ZIP)
+
+Website की HTML File खोलें
+
+### Website में क्या-क्या है?
+
+* Admin Dashboard: Total Staff, आज की Attendance और Monthly Salary।
+
+* Staff Management: Staff का नाम और Employee ID जोड़ें।
+
+* Attendance: सुबह 6:00 से 8:00 बजे तक ही Entry।
+
+* 8-Hour Shift: Entry के 8 घंटे बाद पूरी ड्यूटी।
+
+* Automatic Salary: ₹600 प्रति दिन, कम घंटे होने पर ₹75 प्रति घंटे।
+
+* Sunday Off: रविवार को Attendance बंद।
+
+* Monthly Report: Salary Report CSV में Download।
+
+* Backup: Attendance Data का Backup और Restore।
+
+### Website कैसे चलाएँ?
+
+ZIP डाउनलोड करके Extract करें और `index.html` को Chrome में खोलें।
+
+ध्यान दें: यह शुरुआती डेमो है। अभी डेटा उसी ब्राउज़र में सेव होता है और समय डिवाइस की घड़ी से लिया जाता है। असली Staff Attendance के लिए Login, Server Database और सुरक्षित Server Time लगाना होगा, ताकि Staff समय बदलकर Attendance न लगा सके।
+
+एक जरूरी सवाल: क्या आप चाहते हैं कि हर Staff अपने मोबाइल से Login करके Attendance लगाए और Admin अपने मोबाइल से सभी की Attendance व Salary देख सके?
+
+आपकी Staff Attendance Website + Admin Dashboard + Automatic Salary Calculation का पहला working version तैयार है।
+
+Website तैयार है
+
+Download Complete Website (ZIP)
+
+Website की HTML File खोलें
+
+### Website में क्या-क्या है?
+
+* Admin Dashboard: Total Staff, आज की Attendance और Monthly Salary।
+
+* Staff Management: Staff का नाम और Employee ID जोड़ें।
+
+* Attendance: सुबह 6:00 से 8:00 बजे तक ही Entry।
+
+* 8-Hour Shift: Entry के 8 घंटे बाद पूरी ड्यूटी।
+
+* Automatic Salary: ₹600 प्रति दिन, कम घंटे होने पर ₹75 प्रति घंटे।
+
+* Sunday Off: रविवार को Attendance बंद।
+
+* Monthly Report: Salary Report CSV में Download।
+
+* Backup: Attendance Data का Backup और Restore।
+
+### Website कैसे चलाएँ?
+
+ZIP डाउनलोड करके Extract करें और `index.html` को Chrome में खोलें।
+
+ध्यान दें: यह शुरुआती डेमो है। अभी डेटा उसी ब्राउज़र में सेव होता है और समय डिवाइस की घड़ी से लिया जाता है। असली Staff Attendance के लिए Login, Server Database और सुरक्षित Server Time लगाना होगा, ताकि Staff समय बदलकर Attendance न लगा सके।
+
+एक जरूरी सवाल: क्या आप चाहते हैं कि हर Staff अपने मोबाइल से Login करके Attendance लगाए और Admin अपने मोबाइल से सभी की Attendance व Salary देख सके?

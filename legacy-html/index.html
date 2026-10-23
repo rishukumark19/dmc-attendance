@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>नगर निगम — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{--navy:#0b1f38;--navy2:#14335a;--navy3:#1e4a7a;--saff:#e8761a;--green:#138808;--green2:#15803d;--ok:#16a34a;--err:#dc2626;--errbg:#fef2f2;--g100:#f1f5f9;--g200:#e2e8f0;--g400:#94a3b8;--g600:#475569;--g800:#1e293b;--font:'Inter','Noto Sans Devanagari',system-ui,sans-serif;}
+    html,body{height:100%;font-family:var(--font);-webkit-font-smoothing:antialiased;}
+    body{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;position:relative;overflow:hidden;background:var(--navy);}
+    .blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:0.35;animation:drift 8s ease-in-out infinite alternate;}
+    .b1{width:340px;height:340px;background:var(--navy3);top:-80px;left:-80px;}
+    .b2{width:280px;height:280px;background:#1a6035;bottom:-60px;right:-60px;animation-delay:2s;}
+    .b3{width:200px;height:200px;background:var(--saff);top:50%;left:60%;opacity:0.12;animation-delay:4s;}
+    @keyframes drift{from{transform:translate(0,0) scale(1);}to{transform:translate(30px,20px) scale(1.08);}}
+    .card{position:relative;z-index:2;width:100%;max-width:420px;background:rgba(255,255,255,0.97);border-radius:24px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.45);animation:rise 0.5s cubic-bezier(0.16,1,0.3,1);}
+    @keyframes rise{from{opacity:0;transform:translateY(30px);}to{opacity:1;transform:translateY(0);}}
+    .tristrip{height:5px;background:linear-gradient(90deg,var(--saff) 33.3%,#fff 33.3% 66.6%,var(--green) 66.6%);}
+    .body{padding:32px 30px 36px;}
+    .logo-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:28px;text-align:center;}
+    .logo-ring{width:80px;height:80px;border-radius:50%;background:var(--g100);border:3px solid var(--saff);display:flex;align-items:center;justify-content:center;margin-bottom:14px;box-shadow:0 0 0 6px rgba(232,118,26,0.1);overflow:hidden;}
+    .logo-ring img{width:100%;height:100%;object-fit:contain;border-radius:50%;}
+    .org-name-hi{font-size:1.35rem;font-weight:800;color:var(--navy);}
+    .org-name-en{font-size:0.85rem;font-weight:600;color:var(--navy3);margin-top:2px;}
+    .org-sub{font-size:0.72rem;color:var(--g400);margin-top:6px;}
+    .role-wrap{display:flex;background:var(--g100);border-radius:100px;padding:4px;margin-bottom:24px;gap:4px;}
+    .role-btn{flex:1;padding:9px 12px;border:none;border-radius:100px;font-size:0.83rem;font-weight:600;font-family:var(--font);cursor:pointer;color:var(--g400);background:transparent;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px;}
+    .role-btn.active{background:#fff;color:var(--navy);box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+    .fg{margin-bottom:16px;}
+    .fl{display:block;font-size:0.75rem;font-weight:700;color:var(--g600);margin-bottom:7px;letter-spacing:0.3px;text-transform:uppercase;}
+    .iw{position:relative;}
+    .ii{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:1rem;opacity:0.4;pointer-events:none;}
+    .fi{width:100%;padding:12px 14px 12px 42px;border:1.5px solid var(--g200);border-radius:10px;font-size:0.92rem;font-family:var(--font);color:var(--navy);background:#fff;transition:border-color 0.2s,box-shadow 0.2s;outline:none;}
+    .fi:focus{border-color:var(--navy3);box-shadow:0 0 0 3px rgba(30,74,122,0.12);}
+    .fi::placeholder{color:var(--g400);}
+    .pin-fi{letter-spacing:5px;font-size:1.1rem;font-weight:700;text-align:center;}
+    .tpwd{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--g400);padding:4px;transition:color 0.2s;}
+    .tpwd:hover{color:var(--navy);}
+    .btn-login{width:100%;padding:14px;border:none;border-radius:10px;font-size:0.95rem;font-weight:700;font-family:var(--font);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;letter-spacing:0.3px;}
+    .btn-staff{background:linear-gradient(135deg,var(--navy2),var(--navy3));color:#fff;box-shadow:0 4px 16px rgba(20,51,90,0.35);}
+    .btn-staff:hover:not(:disabled){box-shadow:0 8px 24px rgba(20,51,90,0.45);transform:translateY(-1px);}
+    .btn-admin{background:linear-gradient(135deg,#c45f0d,var(--saff));color:#fff;box-shadow:0 4px 16px rgba(228,118,26,0.35);}
+    .btn-admin:hover:not(:disabled){box-shadow:0 8px 24px rgba(228,118,26,0.45);transform:translateY(-1px);}
+    .btn-login:disabled{opacity:0.55;cursor:not-allowed;transform:none;}
+    .spin{width:17px;height:17px;border:2.5px solid rgba(255,255,255,0.35);border-top-color:#fff;border-radius:50%;animation:rot 0.65s linear infinite;display:none;flex-shrink:0;}
+    @keyframes rot{to{transform:rotate(360deg);}}
+    .err-box{display:none;background:var(--errbg);border:1px solid #fca5a5;border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--err);margin-bottom:14px;animation:shake 0.35s ease;}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+    .help{text-align:center;margin-top:16px;font-size:0.76rem;color:var(--g400);}
+    .help a{color:var(--navy3);font-weight:600;cursor:pointer;}
+    .foot{position:absolute;bottom:16px;left:0;right:0;text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.3);z-index:2;}
+    @media(max-width:480px){.body{padding:24px 20px 28px;}}
+  </style>
+</head>
+<body>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+<div class="card">
+  <div class="tristrip"></div>
+  <div class="body">
+    <div class="logo-wrap">
+      <div class="logo-ring">
+        <img src="assets/logo.png" alt="Logo" onerror="this.parentElement.innerHTML='🏛️'">
+      </div>
+      <div class="org-name-hi">नगर निगम</div>
+      <div class="org-name-en">NAGAR NIGAM</div>
+      <div class="org-sub">उपस्थिति प्रणाली &nbsp;•&nbsp; Attendance System</div>
+    </div>
+    <div class="role-wrap">
+      <button class="role-btn active" id="tabStaff" onclick="switchRole('staff')">👤 Staff / कर्मचारी</button>
+      <button class="role-btn"        id="tabAdmin" onclick="switchRole('admin')">🛡️ Admin</button>
+    </div>
+
+    <!-- Staff Form -->
+    <div id="formStaff">
+      <div class="fg">
+        <label class="fl">Employee ID / कर्मचारी क्रमांक</label>
+        <div class="iw"><span class="ii">🪪</span>
+          <input type="text" id="staffId" class="fi" placeholder="e.g. EMP001" autocomplete="username" autocapitalize="characters" spellcheck="false">
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">PIN / पासवर्ड</label>
+        <div class="iw"><span class="ii">🔑</span>
+          <input type="password" id="staffPin" class="fi pin-fi" placeholder="• • • •" maxlength="8">
+          <button class="tpwd" onclick="togglePwd('staffPin',this)">👁</button>
+        </div>
+      </div>
+      <div class="err-box" id="loginErr"><span id="loginErrMsg">Invalid Employee ID or PIN.</span></div>
+      <button class="btn-login btn-staff" id="loginBtn" onclick="doStaffLogin()">
+        <span class="spin" id="loginSpin"></span>
+        <span id="loginTxt">Login / लॉगिन करें &nbsp;→</span>
+      </button>
+      <div class="help">PIN भूल गए? <a onclick="alert('Admin से संपर्क करें।')">Admin से संपर्क करें</a></div>
+    </div>
+
+    <!-- Admin Form -->
+    <div id="formAdmin" style="display:none;">
+      <div class="fg">
+        <label class="fl">Admin Username</label>
+        <div class="iw"><span class="ii">🛡️</span>
+          <input type="text" id="adminUser" class="fi" placeholder="admin" autocomplete="username" autocapitalize="off">
+        </div>
+      </div>
+      <div class="fg">
+        <label class="fl">Password / पासवर्ड</label>
+        <div class="iw"><span class="ii">🔐</span>
+          <input type="password" id="adminPass" class="fi" placeholder="••••••••">
+          <button class="tpwd" onclick="togglePwd('adminPass',this)">👁</button>
+        </div>
+      </div>
+      <div class="err-box" id="adminErr">Invalid admin credentials.</div>
+      <button class="btn-login btn-admin" id="adminBtn" onclick="doAdminLogin()">
+        <span class="spin" id="adminSpin"></span>
+        <span id="adminTxt">Admin Login &nbsp;→</span>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="foot">© नगर निगम — उपस्थिति प्रणाली &nbsp;|&nbsp; सभी अधिकार सुरक्षित</div>
+
+<script type="module">
+  import { supabase } from './js/supabase-config.js';
+
+  const $ = id => document.getElementById(id);
+
+  // ── Check already logged in ──
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) redirectByRole(session.user.id);
+
+  async function redirectByRole(uid) {
+    const { data } = await supabase.from('staff').select('role').eq('user_id', uid).single();
+    if (data?.role === 'admin') window.location.href = 'admin.html';
+    else if (data) window.location.href = 'staff.html';
+  }
+
+  // ── Staff Login ──
+  window.doStaffLogin = async function() {
+    const empId = $('staffId').value.trim().toUpperCase();
+    const pin   = $('staffPin').value;
+    if (!empId || !pin) { showErr('loginErr','Please fill all fields.'); return; }
+    setLoad('loginBtn','loginSpin','loginTxt',true,'Logging in...');
+    hideErr('loginErr');
+    const t = setTimeout(() => { setLoad('loginBtn','loginSpin','loginTxt',false,'Login / लॉगिन करें &nbsp;→'); showErr('loginErr','Timed out. Try again.'); }, 10000);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: `${empId.toLowerCase()}@nagarnigam.local`, password: pin
+      });
+      clearTimeout(t);
+      if (error) throw error;
+      window.location.href = 'staff.html';
+    } catch(e) {
+      clearTimeout(t);
+      setLoad('loginBtn','loginSpin','loginTxt',false,'Login / लॉगिन करें &nbsp;→');
+      showErr('loginErr','Invalid Employee ID or PIN. Please try again.');
+    }
+  };
+
+  // ── Admin Login ──
+  window.doAdminLogin = async function() {
+    const user = $('adminUser').value.trim();
+    const pass = $('adminPass').value;
+    if (!user || !pass) { showErr('adminErr','Please fill all fields.'); return; }
+    setLoad('adminBtn','adminSpin','adminTxt',true,'Logging in...');
+    hideErr('adminErr');
+    const t = setTimeout(() => { setLoad('adminBtn','adminSpin','adminTxt',false,'Admin Login &nbsp;→'); showErr('adminErr','Timed out. Check connection.'); }, 10000);
+    try {
+      const email = user.toLowerCase() === 'admin'
+        ? 'admin@nagarnigam.local'
+        : `${user.toLowerCase()}@nagarnigam.local`;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      clearTimeout(t);
+      if (error) throw error;
+      // Verify admin role
+      const { data: profile } = await supabase.from('staff').select('role').eq('user_id', data.user.id).single();
+      if (profile?.role !== 'admin') {
+        await supabase.auth.signOut();
+        throw new Error('Not an admin account.');
+      }
+      window.location.href = 'admin.html';
+    } catch(e) {
+      clearTimeout(t);
+      setLoad('adminBtn','adminSpin','adminTxt',false,'Admin Login &nbsp;→');
+      showErr('adminErr', e.message?.includes('Invalid') ? 'Invalid admin credentials.' : e.message);
+    }
+  };
+
+  window.switchRole = function(role) {
+    const s = role === 'staff';
+    $('formStaff').style.display = s ? 'block' : 'none';
+    $('formAdmin').style.display = s ? 'none'  : 'block';
+    $('tabStaff').classList.toggle('active', s);
+    $('tabAdmin').classList.toggle('active', !s);
+    hideErr('loginErr'); hideErr('adminErr');
+  };
+  window.togglePwd = function(id, btn) {
+    const inp = $(id); const show = inp.type==='password';
+    inp.type = show ? 'text' : 'password'; btn.textContent = show ? '🙈' : '👁';
+  };
+  function showErr(id, msg) {
+    const el=$(id); if(msg && $(`${id}Msg`)) $(`${id}Msg`).textContent=msg; else if(msg) el.textContent=msg;
+    el.style.display='block'; el.style.animation='none'; el.offsetHeight; el.style.animation='shake 0.35s ease';
+  }
+  function hideErr(id) { $(id).style.display='none'; }
+  function setLoad(btn,spin,txt,loading,label) {
+    $(btn).disabled=loading; $(spin).style.display=loading?'inline-block':'none'; $(txt).innerHTML=label;
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key!=='Enter') return;
+    if ($('formAdmin').style.display!=='none') window.doAdminLogin();
+    else window.doStaffLogin();
+  });
+</script>
+</body>
+</html>
