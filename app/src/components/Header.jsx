@@ -16,7 +16,7 @@ export default function Header({ title, subtitle }) {
     <header className="hdr">
       <div className="tristrip" />
       <div className="hdr-inner">
-        <img src="/logo.png" alt="DMC Logo" className="hdr-logo" />
+        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="DMC Logo" className="hdr-logo" />
         <div className="hdr-text">
           <h1>{title || 'धनबाद नगर निगम'}</h1>
           <p>{subtitle || 'Dhanbad Municipal Corporation'}</p>

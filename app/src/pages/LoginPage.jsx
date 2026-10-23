@@ -46,9 +46,11 @@ export default function LoginPage() {
     if (!user || !pass) { showErr('Please fill all fields.'); return; }
     setLoading(true); setError('');
     try {
-      const email = user.toLowerCase() === 'admin'
-        ? 'admin@nagarnigam.local'
-        : `${user.toLowerCase()}@nagarnigam.local`;
+      const email = user.includes('@')
+        ? user.toLowerCase()
+        : user.toLowerCase() === 'admin'
+          ? 'admin@nagarnigam.local'
+          : `${user.toLowerCase()}@nagarnigam.local`;
       const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
       if (error) throw error;
       const { data: profile } = await supabase.from('staff').select('role').eq('user_id', data.user.id).single();
@@ -73,7 +75,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="login-logo-wrap">
             <div className="login-logo-ring">
-              <img src="/logo.png" alt="DMC Logo" />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="DMC Logo" />
             </div>
             <div className="login-org-hi">धनबाद नगर निगम</div>
             <div className="login-org-en">DHANBAD MUNICIPAL CORPORATION</div>
