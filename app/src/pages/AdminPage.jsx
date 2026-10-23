@@ -8,6 +8,8 @@ import AttendanceChart from '../components/AttendanceChart';
 import { useAuth } from '../context/AuthContext';
 import { supabase, makeTempClient } from '../lib/supabase';
 import { todayIST, hrs, pay, money, fmtT, getInitials, fillMonths, pad } from '../lib/utils';
+import { triggerCelebration, springPhysics } from '../lib/animations';
+import AnimatedCheckmark from '../components/AnimatedCheckmark';
 import {
   Users,
   Calendar,
@@ -68,8 +70,9 @@ function AddStaffModal({ onClose, onAdded, existingIds }) {
       if (!newUid) throw new Error('Could not create user account. Check Supabase Auth settings.');
       const { error: dbErr } = await supabase.from('staff').insert({ user_id: newUid, name: n, emp_id: id, role: 'staff', active: true });
       if (dbErr) throw dbErr;
-      setMsg({ type: 'ok', text: `${n} added successfully!` });
-      setTimeout(() => { onAdded(); onClose(); }, 1200);
+      triggerCelebration();
+      setMsg({ type: 'ok', text: `${n} registered successfully!` });
+      setTimeout(() => { onAdded(); onClose(); }, 1400);
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
     } finally {
@@ -144,20 +147,34 @@ function AddStaffModal({ onClose, onAdded, existingIds }) {
 
           {msg && (
             <div className={`modal-msg ${msg.type === 'ok' ? 'modal-msg-ok' : 'modal-msg-err'}`}>
-              {msg.type === 'ok' ? <CheckCircle2 size={16} /> : <X size={16} />}
+              {msg.type === 'ok' ? <AnimatedCheckmark size={20} color="#15803d" strokeWidth={2.5} /> : <X size={16} />}
               <span>{msg.text}</span>
             </div>
           )}
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose} disabled={loading}>
+          <motion.button
+            className="btn btn-outline"
+            onClick={onClose}
+            disabled={loading}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            transition={springPhysics.snappy}
+          >
             Cancel
-          </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={loading}>
+          </motion.button>
+          <motion.button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={loading}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            transition={springPhysics.snappy}
+          >
             {loading ? <RefreshCw size={15} className="spin" /> : <Plus size={15} />}
             <span>{loading ? 'Registering...' : 'Save Employee'}</span>
-          </button>
+          </motion.button>
         </div>
       </motion.div>
     </div>

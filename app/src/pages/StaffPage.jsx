@@ -8,6 +8,8 @@ import BorderBeam from '../components/BorderBeam';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { todayIST, monthIST, hrs, pay, money, fmtT, pad } from '../lib/utils';
+import { triggerCelebration, springPhysics } from '../lib/animations';
+import AnimatedCheckmark from '../components/AnimatedCheckmark';
 import {
   Clock,
   CheckCircle2,
@@ -133,6 +135,7 @@ export default function StaffPage() {
       if (error) throw error;
       setTodayRec(data);
       await loadData();
+      triggerCelebration();
       toast.success('Check-in recorded successfully!', { id: tId });
     } catch (e) {
       toast.error('Check-in failed: ' + e.message, { id: tId });
@@ -150,6 +153,7 @@ export default function StaffPage() {
       if (error) throw error;
       setTodayRec(data);
       await loadData();
+      triggerCelebration();
       const h = hrs(data.in_time, data.out_time);
       toast.success(`${h.toFixed(2)}h shift saved · ${money(pay(h))} earned`, { id: tId });
     } catch (e) {
@@ -233,30 +237,36 @@ export default function StaffPage() {
                 {/* Main Action Buttons */}
                 <div className="hero-actions">
                   {!todayRec && (
-                    <button
+                    <motion.button
                       className="btn-shift-primary"
                       onClick={doCheckIn}
                       disabled={!canCheckIn || btnLoading === 'in'}
+                      whileHover={canCheckIn ? { scale: 1.02 } : {}}
+                      whileTap={canCheckIn ? { scale: 0.96 } : {}}
+                      transition={springPhysics.snappy}
                     >
                       {btnLoading === 'in' ? <RefreshCw size={18} className="spin" /> : <Clock size={18} />}
                       <span>{canCheckIn ? 'Check In / उपस्थिति दर्ज करें' : 'Check-In Window (6:00 – 8:00 AM)'}</span>
-                    </button>
+                    </motion.button>
                   )}
 
                   {checkedIn && (
-                    <button
+                    <motion.button
                       className="btn-shift-checkout"
                       onClick={doCheckOut}
                       disabled={btnLoading === 'out'}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
+                      transition={springPhysics.snappy}
                     >
                       {btnLoading === 'out' ? <RefreshCw size={18} className="spin" /> : <CheckCircle2 size={18} />}
                       <span>Check Out / कार्य समाप्त करें</span>
-                    </button>
+                    </motion.button>
                   )}
 
                   {checkedOut && (
                     <div className="shift-done-pill">
-                      <Check size={16} />
+                      <AnimatedCheckmark size={24} color="#15803d" />
                       <span>Shift Logged for Today</span>
                     </div>
                   )}

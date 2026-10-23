@@ -18,6 +18,7 @@ import {
   Clock,
   Sparkles,
 } from '../components/Icons';
+import { springPhysics } from '../lib/animations';
 import './LoginPage.css';
 
 export default function LoginPage() {
@@ -213,14 +214,17 @@ export default function LoginPage() {
                   <span className="signin-help-link">Window: 6:00 – 8:00 AM</span>
                 </div>
 
-                <button
+                <motion.button
                   type="submit"
                   className="signin-submit-btn"
                   disabled={loading}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={springPhysics.snappy}
                 >
                   {loading ? <RefreshCw size={17} className="spin" /> : <ArrowRight size={17} />}
                   <span>{loading ? 'Authenticating...' : 'Sign In as Staff'}</span>
-                </button>
+                </motion.button>
 
                 <p className="signin-footnote">
                   Forgot PIN or not registered? Contact the DMC Administrator.
@@ -286,14 +290,17 @@ export default function LoginPage() {
                   <span className="signin-help-link">Secure Portal Access</span>
                 </div>
 
-                <button
+                <motion.button
                   type="submit"
                   className="signin-submit-btn admin-theme-btn"
                   disabled={loading}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={springPhysics.snappy}
                 >
                   {loading ? <RefreshCw size={17} className="spin" /> : <ArrowRight size={17} />}
                   <span>{loading ? 'Authenticating...' : 'Sign In as Administrator'}</span>
-                </button>
+                </motion.button>
               </motion.form>
             )}
           </AnimatePresence>
