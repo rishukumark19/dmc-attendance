@@ -1,65 +1,223 @@
-/* Header.css */
+/* Header.css — Modern Shadcn Inspired */
 .hdr {
-  background: linear-gradient(135deg, var(--navy) 0%, #0f2a47 60%, var(--navy2) 100%);
+  background: linear-gradient(135deg, #091a2e 0%, #0d233e 50%, #133357 100%);
   color: #fff;
-  position: sticky; top: 0; z-index: 100;
-  box-shadow: 0 2px 20px rgba(0,0,0,0.22);
-}
-.tristrip-hdr {
-  height: 3px;
-  background: linear-gradient(90deg, var(--saff) 33.3%, #fff 33.3% 66.6%, var(--green) 66.6%);
-}
-.hdr-inner {
-  display: flex; align-items: center; gap: 14px;
-  padding: 11px 24px;
-  max-width: 1280px; margin: 0 auto;
-}
-.hdr-logo {
-  width: 44px; height: 44px; border-radius: 50%;
-  border: 2px solid rgba(232,118,26,0.7);
-  object-fit: contain; background: #fff; padding: 3px;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-}
-.hdr-text { flex: 1; min-width: 0; }
-.hdr-text h1 { font-size: 1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hdr-text p  { font-size: 0.68rem; opacity: 0.55; margin-top: 1px; white-space: nowrap; }
-.hdr-right {
-  margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0;
-}
-.hdr-chip {
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 100px;
-  padding: 5px 14px 5px 5px;
-  font-size: 0.78rem; font-weight: 500;
-  backdrop-filter: blur(4px);
-}
-.hdr-avatar {
-  width: 30px; height: 30px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--saff), #c45f0d); color: #fff;
-  font-weight: 700; font-size: 0.72rem;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-}
-.btn-logout {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
-  color: rgba(255,255,255,0.85); border-radius: 100px;
-  padding: 7px 16px; font-size: 0.75rem; font-weight: 600;
-  cursor: pointer; font-family: var(--font);
-  transition: all 0.18s; display: flex; align-items: center; gap: 6px;
-  letter-spacing: 0.01em;
-}
-.btn-logout:hover {
-  background: rgba(255,255,255,0.18);
-  color: #fff;
-  border-color: rgba(255,255,255,0.3);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px -2px rgba(9, 26, 46, 0.4);
 }
 
-@media (max-width: 600px) {
-  .hdr-inner { padding: 10px 14px; gap: 10px; }
-  .hdr-text h1 { font-size: 0.88rem; }
+.tristrip {
+  height: 3px;
+  background: linear-gradient(90deg, #e8761a 0%, #e8761a 33.3%, #ffffff 33.3%, #ffffff 66.6%, #138808 66.6%, #138808 100%);
+  width: 100%;
+}
+
+.hdr-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.hdr-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hdr-menu-btn {
+  display: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  padding: 6px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.hdr-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid rgba(232, 118, 26, 0.85);
+  object-fit: contain;
+  background: #ffffff;
+  padding: 2px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.hdr-text {
+  min-width: 0;
+}
+
+.hdr-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hdr-brand-row h1 {
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.hdr-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(22, 163, 74, 0.18);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.live-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.hdr-text p {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.hdr-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.hdr-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  padding: 4px 14px 4px 5px;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.hdr-chip:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.hdr-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.hdr-avatar-admin {
+  background: linear-gradient(135deg, #e8761a, #c25e0a);
+  box-shadow: 0 2px 6px rgba(232, 118, 26, 0.35);
+}
+
+.hdr-avatar-staff {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.hdr-user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.hdr-user-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.hdr-user-role {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.btn-logout {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: 9999px;
+  padding: 7px 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s ease;
+}
+
+.btn-logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .hdr-inner {
+    padding: 8px 14px;
+    gap: 10px;
+  }
+  .hdr-brand-row h1 {
+    font-size: 0.86rem;
+  }
+  .hdr-text p {
+    font-size: 0.66rem;
+  }
+  .hide-mobile {
+    display: none !important;
+  }
+  .hdr-chip {
+    padding: 3px;
+  }
+  .btn-logout {
+    padding: 7px;
+  }
 }

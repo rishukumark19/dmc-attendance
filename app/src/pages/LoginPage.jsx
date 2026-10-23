@@ -1,6 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import {
+  ShieldCheck,
+  User,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Building2,
+  Lock,
+  AlertCircle,
+  RefreshCw,
+} from '../components/Icons';
 import './LoginPage.css';
 
 export default function LoginPage() {
@@ -24,7 +36,7 @@ export default function LoginPage() {
     e.preventDefault();
     const id = staffId.trim().toUpperCase();
     const pin = staffPin;
-    if (!id || !pin) { showErr('Please fill all fields.'); return; }
+    if (!id || !pin) { showErr('Please enter both Employee ID and PIN.'); return; }
     setLoading(true); setError('');
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -33,7 +45,7 @@ export default function LoginPage() {
       });
       if (error) throw error;
     } catch (e) {
-      showErr('Invalid Employee ID or PIN. Please try again.');
+      showErr('Invalid Employee ID or PIN. Please verify credentials.');
     } finally {
       setLoading(false);
     }
@@ -43,7 +55,7 @@ export default function LoginPage() {
     e.preventDefault();
     const user = adminUser.trim();
     const pass = adminPass;
-    if (!user || !pass) { showErr('Please fill all fields.'); return; }
+    if (!user || !pass) { showErr('Please enter both username and password.'); return; }
     setLoading(true); setError('');
     try {
       const email = user.includes('@')
@@ -56,109 +68,114 @@ export default function LoginPage() {
       const { data: profile } = await supabase.from('staff').select('role').eq('user_id', data.user.id).single();
       if (profile?.role !== 'admin') {
         await supabase.auth.signOut();
-        throw new Error('Not an admin account.');
+        throw new Error('This account does not have administrative access.');
       }
     } catch (e) {
-      showErr(e.message?.includes('Invalid') ? 'Invalid admin credentials.' : e.message);
+      showErr(e.message?.includes('Invalid') ? 'Invalid administrator credentials.' : e.message);
     } finally {
       setLoading(false);
     }
   }
 
   const cardVariants = {
-    hidden: { opacity: 0, y: 40, scale: 0.96 },
-    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+    hidden: { opacity: 0, y: 30, scale: 0.98 },
+    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
   };
   const formVariants = {
-    hidden: { opacity: 0, x: role === 'staff' ? -20 : 20 },
-    visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } },
-    exit: { opacity: 0, x: role === 'staff' ? 20 : -20, transition: { duration: 0.18 } },
+    hidden: { opacity: 0, x: role === 'staff' ? -16 : 16 },
+    visible: { opacity: 1, x: 0, transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] } },
+    exit: { opacity: 0, x: role === 'staff' ? 16 : -16, transition: { duration: 0.15 } },
   };
 
   return (
-    <div className="login-bg">
-      {/* Animated blobs */}
-      <div className="blob b1" />
-      <div className="blob b2" />
-      <div className="blob b3" />
-      <div className="blob b4" />
+    <div className="login-wrapper">
+      {/* Background Gradients */}
+      <div className="login-bg-glow glow-top" />
+      <div className="login-bg-glow glow-bottom" />
 
       <motion.div
-        className="login-card"
+        className="login-card-container"
         variants={cardVariants}
         initial="hidden"
         animate="visible"
       >
         <div className="tristrip" />
-        <div className="login-body">
 
-          {/* Logo */}
-          <motion.div
-            className="login-logo-wrap"
-            initial={{ opacity: 0, y: -16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.5 }}
-          >
-            <div className="login-logo-ring">
-              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="DMC Logo" />
+        <div className="login-card-content">
+          {/* Header Branding */}
+          <div className="login-brand-header">
+            <div className="login-logo-container">
+              <img
+                src={`${import.meta.env.BASE_URL}logo.png`}
+                alt="DMC Logo"
+                className="login-emblem"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
             </div>
-            <div className="login-org-hi">धनबाद नगर निगम</div>
-            <div className="login-org-en">DHANBAD MUNICIPAL CORPORATION</div>
-            <div className="login-org-sub">उपस्थिति प्रणाली &nbsp;•&nbsp; Attendance System</div>
-          </motion.div>
+            <h1 className="login-title-hi">धनबाद नगर निगम</h1>
+            <h2 className="login-title-en">Dhanbad Municipal Corporation</h2>
+            <div className="login-portal-badge">
+              <Building2 size={13} />
+              <span>Attendance & Payroll System</span>
+            </div>
+          </div>
 
-          {/* Role tabs */}
-          <motion.div
-            className="role-tabs"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.25 }}
-          >
+          {/* Role Selection Tabs */}
+          <div className="login-tabs">
             <button
-              className={`role-tab${role === 'staff' ? ' active' : ''}`}
+              type="button"
+              className={`login-tab-btn ${role === 'staff' ? 'active' : ''}`}
               onClick={() => { setRole('staff'); setError(''); }}
-            >👤 Staff / कर्मचारी</button>
+            >
+              <User size={15} />
+              <span>Staff / कर्मचारी</span>
+            </button>
             <button
-              className={`role-tab${role === 'admin' ? ' active' : ''}`}
+              type="button"
+              className={`login-tab-btn ${role === 'admin' ? 'active' : ''}`}
               onClick={() => { setRole('admin'); setError(''); }}
-            >🛡️ Admin</button>
-          </motion.div>
+            >
+              <ShieldCheck size={15} />
+              <span>Administrator</span>
+            </button>
+          </div>
 
-          {/* Error */}
+          {/* Error Message */}
           <AnimatePresence mode="wait">
             {error && (
               <motion.div
                 key={errKey.current}
-                className="login-err"
-                initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
+                className="login-alert-error"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.25 }}
+                transition={{ duration: 0.2 }}
               >
-                ⚠️ {error}
+                <AlertCircle size={16} className="alert-icon" />
+                <span>{error}</span>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Forms */}
+          {/* Form Switcher */}
           <AnimatePresence mode="wait">
             {role === 'staff' ? (
               <motion.form
                 key="staff"
                 onSubmit={doStaffLogin}
-                className="login-form"
+                className="login-fields"
                 variants={formVariants}
                 initial="hidden"
                 animate="visible"
                 exit="exit"
               >
-                <div className="form-group">
-                  <label className="form-label">Employee ID / कर्मचारी क्रमांक</label>
-                  <div className="input-wrap">
-                    <span className="input-icon">🪪</span>
+                <div className="field-group">
+                  <label className="field-label">Employee ID / कर्मचारी क्रमांक</label>
+                  <div className="field-input-box">
+                    <User size={16} className="field-icon" />
                     <input
                       type="text"
-                      className="form-input login-input"
+                      className="field-input font-mono"
                       placeholder="e.g. EMP001"
                       value={staffId}
                       onChange={e => setStaffId(e.target.value)}
@@ -168,55 +185,61 @@ export default function LoginPage() {
                     />
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">PIN / पासवर्ड</label>
-                  <div className="input-wrap">
-                    <span className="input-icon">🔑</span>
+
+                <div className="field-group">
+                  <label className="field-label">Login PIN / पिन</label>
+                  <div className="field-input-box">
+                    <KeyRound size={16} className="field-icon" />
                     <input
                       type={showPin ? 'text' : 'password'}
-                      className="form-input login-input pin-input"
+                      className="field-input font-mono"
                       placeholder="• • • •"
                       maxLength={8}
                       value={staffPin}
                       onChange={e => setStaffPin(e.target.value)}
                       inputMode="numeric"
                     />
-                    <button type="button" className="eye-btn" onClick={() => setShowPin(v => !v)}>
-                      {showPin ? '🙈' : '👁'}
+                    <button
+                      type="button"
+                      className="field-eye-btn"
+                      onClick={() => setShowPin(v => !v)}
+                      aria-label="Toggle PIN visibility"
+                    >
+                      {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
-                <motion.button
+
+                <button
                   type="submit"
-                  className="btn btn-navy btn-lg login-btn"
+                  className="login-submit-btn"
                   disabled={loading}
-                  whileTap={{ scale: 0.97 }}
-                  whileHover={{ scale: 1.02 }}
                 >
-                  {loading && <span className="spinner spinner-sm" />}
-                  {loading ? 'Logging in...' : 'Login →'}
-                </motion.button>
-                <div className="login-help">
-                  PIN भूल गए? <a onClick={() => alert('Admin से संपर्क करें।')}>Admin से संपर्क करें</a>
-                </div>
+                  {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} />}
+                  <span>{loading ? 'Verifying...' : 'Sign In as Staff'}</span>
+                </button>
+
+                <p className="login-help-text">
+                  PIN forgot or need access? Contact the Municipal Admin.
+                </p>
               </motion.form>
             ) : (
               <motion.form
                 key="admin"
                 onSubmit={doAdminLogin}
-                className="login-form"
+                className="login-fields"
                 variants={formVariants}
                 initial="hidden"
                 animate="visible"
                 exit="exit"
               >
-                <div className="form-group">
-                  <label className="form-label">Admin Username</label>
-                  <div className="input-wrap">
-                    <span className="input-icon">🛡️</span>
+                <div className="field-group">
+                  <label className="field-label">Admin Username or Email</label>
+                  <div className="field-input-box">
+                    <ShieldCheck size={16} className="field-icon" />
                     <input
                       type="text"
-                      className="form-input login-input"
+                      className="field-input"
                       placeholder="admin"
                       value={adminUser}
                       onChange={e => setAdminUser(e.target.value)}
@@ -224,42 +247,46 @@ export default function LoginPage() {
                     />
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Password / पासवर्ड</label>
-                  <div className="input-wrap">
-                    <span className="input-icon">🔐</span>
+
+                <div className="field-group">
+                  <label className="field-label">Admin Password</label>
+                  <div className="field-input-box">
+                    <Lock size={16} className="field-icon" />
                     <input
                       type={showPass ? 'text' : 'password'}
-                      className="form-input login-input"
+                      className="field-input"
                       placeholder="••••••••"
                       value={adminPass}
                       onChange={e => setAdminPass(e.target.value)}
                     />
-                    <button type="button" className="eye-btn" onClick={() => setShowPass(v => !v)}>
-                      {showPass ? '🙈' : '👁'}
+                    <button
+                      type="button"
+                      className="field-eye-btn"
+                      onClick={() => setShowPass(v => !v)}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
-                <motion.button
+
+                <button
                   type="submit"
-                  className="btn btn-saff btn-lg login-btn"
+                  className="login-submit-btn admin-submit-btn"
                   disabled={loading}
-                  whileTap={{ scale: 0.97 }}
-                  whileHover={{ scale: 1.02 }}
                 >
-                  {loading && <span className="spinner spinner-sm" />}
-                  {loading ? 'Logging in...' : 'Admin Login →'}
-                </motion.button>
+                  {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} />}
+                  <span>{loading ? 'Authenticating...' : 'Sign In as Administrator'}</span>
+                </button>
               </motion.form>
             )}
           </AnimatePresence>
+        </div>
 
+        <div className="login-card-footer">
+          <span>Official Portal &nbsp;•&nbsp; Dhanbad Municipal Corporation</span>
         </div>
       </motion.div>
-
-      <div className="login-footer">
-        © धनबाद नगर निगम &nbsp;|&nbsp; Attendance System
-      </div>
     </div>
   );
 }

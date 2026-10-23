@@ -1,16 +1,36 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Header from '../components/Header';
 import AnimatedNumber from '../components/AnimatedNumber';
-import Meteors from '../components/Meteors';
-import ShimmerButton from '../components/ShimmerButton';
 import MagicCard from '../components/MagicCard';
 import BorderBeam from '../components/BorderBeam';
-import GradientText from '../components/GradientText';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { todayIST, monthIST, hrs, pay, money, fmtT, pad } from '../lib/utils';
+import {
+  Clock,
+  CheckCircle2,
+  Calendar,
+  IndianRupee,
+  AlertCircle,
+  Timer,
+  Check,
+  ChevronRight,
+  Sparkles,
+  History,
+  TrendingUp,
+  Award,
+  RefreshCw,
+} from '../components/Icons';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import './StaffPage.css';
 
 function useClock() {
@@ -24,11 +44,11 @@ function useClock() {
 
 const stagger = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.1 } },
+  visible: { transition: { staggerChildren: 0.08 } },
 };
 const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+  hidden: { opacity: 0, y: 18 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
 };
 
 export default function StaffPage() {
@@ -45,7 +65,7 @@ export default function StaffPage() {
   const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const isSunday = istNow.getDay() === 0;
   const mins = istNow.getHours() * 60 + istNow.getMinutes();
-  const inWindow = mins >= 360 && mins < 481;
+  const inWindow = mins >= 360 && mins < 481; // 6:00 AM to 8:01 AM
   const checkedOut = !!todayRec?.out_time;
   const checkedIn = !!todayRec && !checkedOut;
 
@@ -66,23 +86,42 @@ export default function StaffPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Live timer for active shift
+  const liveHoursWorked = useMemo(() => {
+    if (!checkedIn || !todayRec?.in_time) return null;
+    const [h, m, s] = todayRec.in_time.split(':').map(Number);
+    const startMins = h * 60 + m + (s || 0) / 60;
+    const currentMins = istNow.getHours() * 60 + istNow.getMinutes() + istNow.getSeconds() / 60;
+    const elapsed = Math.max(0, (currentMins - startMins) / 60);
+    return elapsed.toFixed(2);
+  }, [checkedIn, todayRec, now]);
+
   const statusPill = () => {
-    if (isSunday) return { cls: 'pill-gray', text: '🛑 Sunday Off', sub: 'साप्ताहिक अवकाश' };
+    if (isSunday) return { type: 'neutral', text: 'Sunday Holiday / अवकाश', sub: 'Weekly off' };
     if (checkedOut) {
       const h = hrs(todayRec.in_time, todayRec.out_time);
-      return { cls: 'pill-ok', text: `✅ ${h.toFixed(2)}h Done`, sub: 'Shift complete' };
+      return { type: 'success', text: `${h.toFixed(2)}h Completed`, sub: 'Shift ended' };
     }
-    if (checkedIn) return { cls: 'pill-on', text: '🟠 On Duty', sub: `Since ${fmtT(todayRec.in_time)}` };
-    if (!inWindow) return { cls: 'pill-gray', text: '⏰ Closed', sub: '6:00 – 8:00 AM only' };
-    return { cls: 'pill-warn', text: '🟢 Window Open!', sub: 'Check in now' };
+    if (checkedIn) return { type: 'warning', text: 'On Active Duty', sub: `Since ${fmtT(todayRec.in_time)}` };
+    if (!inWindow) return { type: 'neutral', text: 'Check-in Closed', sub: 'Window: 6:00 – 8:00 AM' };
+    return { type: 'pulse', text: 'Window Open', sub: 'Check in now' };
   };
   const pill = statusPill();
 
   const completed = monthRecs.filter(r => r.out_time);
-  const totalH   = completed.reduce((a, r) => a + hrs(r.in_time, r.out_time), 0);
+  const totalH    = completed.reduce((a, r) => a + hrs(r.in_time, r.out_time), 0);
   const fullDays  = completed.filter(r => hrs(r.in_time, r.out_time) >= 8).length;
   const shortDays = completed.filter(r => hrs(r.in_time, r.out_time) < 8).length;
   const earned    = completed.reduce((a, r) => a + pay(hrs(r.in_time, r.out_time)), 0);
+
+  // Staff Personal Chart Data
+  const personalChartData = useMemo(() => {
+    const sorted = [...completed].reverse().slice(-10);
+    return sorted.map(r => ({
+      date: r.date.slice(5),
+      hours: Math.round(hrs(r.in_time, r.out_time) * 10) / 10,
+    }));
+  }, [completed]);
 
   async function doCheckIn() {
     setBtnLoading('in');
@@ -94,7 +133,7 @@ export default function StaffPage() {
       if (error) throw error;
       setTodayRec(data);
       await loadData();
-      toast.success('✅ Check-in successful!', { id: tId });
+      toast.success('Check-in recorded successfully!', { id: tId });
     } catch (e) {
       toast.error('Check-in failed: ' + e.message, { id: tId });
     } finally {
@@ -112,7 +151,7 @@ export default function StaffPage() {
       setTodayRec(data);
       await loadData();
       const h = hrs(data.in_time, data.out_time);
-      toast.success(`✅ ${h.toFixed(2)}h · ${money(pay(h))} earned`, { id: tId });
+      toast.success(`${h.toFixed(2)}h shift saved · ${money(pay(h))} earned`, { id: tId });
     } catch (e) {
       toast.error('Check-out failed: ' + e.message, { id: tId });
     } finally {
@@ -120,16 +159,14 @@ export default function StaffPage() {
     }
   }
 
-  const monthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-
   if (loading) {
     return (
-      <div className="staff-page">
-        <Header title="नगर निगम — उपस्थिति" subtitle="Staff Attendance Portal" />
+      <div className="staff-layout">
+        <Header title="धनबाद नगर निगम" subtitle="Employee Self-Service Portal" />
         <div className="page-loader">
           <div className="page-loader-box">
             <div className="spinner" />
-            <span>Loading...</span>
+            <span className="page-loader-text">Loading Employee Portal...</span>
           </div>
         </div>
       </div>
@@ -137,196 +174,232 @@ export default function StaffPage() {
   }
 
   return (
-    <div className="staff-page">
-      <Header title="नगर निगम — उपस्थिति" subtitle="Staff Attendance Portal" />
+    <div className="staff-layout">
+      <Header
+        title="धनबाद नगर निगम — Staff Portal"
+        subtitle="Daily Attendance & Wage Tracker"
+      />
 
-      <motion.main
-        className="staff-main"
-        variants={stagger}
-        initial="hidden"
-        animate="visible"
-      >
-
-        {/* ── Hero Card with Meteors ── */}
-        <motion.div variants={fadeUp}>
-          <BorderBeam
-            className="hero-beam-wrap"
-            colorFrom="#e8761a"
-            colorTo="#1e4a7a"
-            duration={8}
-          >
-            <div className="hero-card">
-              <Meteors count={12} />
-              <div className="hero-orb hero-orb1" />
-              <div className="hero-orb hero-orb2" />
-
-              <div className="hero-content">
+      <main className="staff-main-container">
+        <motion.div
+          className="staff-content-wrap"
+          variants={stagger}
+          initial="hidden"
+          animate="visible"
+        >
+          {/* ── Employee Hero Profile Card ── */}
+          <motion.div variants={fadeUp}>
+            <BorderBeam duration={12} size={250}>
+              <div className="staff-hero-card">
                 <div className="hero-top-row">
-                  <div>
-                    <div className="hero-name">{profile?.name}</div>
-                    <div className="hero-empid">EMP · {profile?.emp_id}</div>
-                  </div>
                   <div className="hero-badge-wrap">
-                    <span className={`status-pill ${pill.cls}`}>
-                      <span className="pill-dot" />
-                      {pill.text}
-                    </span>
-                    <div className="pill-sub">{pill.sub}</div>
+                    <span className="hero-tag">DMC Employee</span>
+                    <span className="hero-id-tag font-mono">{profile?.emp_id}</span>
+                  </div>
+                  <div className={`hero-status-pill status-${pill.type}`}>
+                    <span className="status-dot" />
+                    <span>{pill.text}</span>
                   </div>
                 </div>
 
-                <div className="hero-clock-row">
-                  <div className="hero-clock">{timeStr}</div>
-                  <div className="hero-date">{dateStr}</div>
+                <div className="hero-center">
+                  <div className="digital-clock font-mono">{timeStr}</div>
+                  <div className="digital-date">{dateStr}</div>
+                </div>
+
+                {/* Shift Details or Live Timer */}
+                {checkedIn && (
+                  <div className="live-shift-banner">
+                    <div className="live-banner-left">
+                      <Timer size={18} className="live-banner-icon" />
+                      <div>
+                        <div className="live-banner-title">Active Shift in Progress</div>
+                        <div className="live-banner-sub">Check-in time: {fmtT(todayRec.in_time)}</div>
+                      </div>
+                    </div>
+                    <div className="live-banner-hours font-mono">
+                      {liveHoursWorked}h
+                    </div>
+                  </div>
+                )}
+
+                {checkedOut && (
+                  <div className="shift-completed-banner">
+                    <CheckCircle2 size={18} />
+                    <span>Today's shift complete ({hrs(todayRec.in_time, todayRec.out_time).toFixed(2)}h logged)</span>
+                  </div>
+                )}
+
+                {/* Main Action Buttons */}
+                <div className="hero-actions">
+                  {!todayRec && (
+                    <button
+                      className="btn-shift-primary"
+                      onClick={doCheckIn}
+                      disabled={!canCheckIn || btnLoading === 'in'}
+                    >
+                      {btnLoading === 'in' ? <RefreshCw size={18} className="spin" /> : <Clock size={18} />}
+                      <span>{canCheckIn ? 'Check In / उपस्थिति दर्ज करें' : 'Check-In Window (6:00 – 8:00 AM)'}</span>
+                    </button>
+                  )}
+
+                  {checkedIn && (
+                    <button
+                      className="btn-shift-checkout"
+                      onClick={doCheckOut}
+                      disabled={btnLoading === 'out'}
+                    >
+                      {btnLoading === 'out' ? <RefreshCw size={18} className="spin" /> : <CheckCircle2 size={18} />}
+                      <span>Check Out / कार्य समाप्त करें</span>
+                    </button>
+                  )}
+
+                  {checkedOut && (
+                    <div className="shift-done-pill">
+                      <Check size={16} />
+                      <span>Shift Logged for Today</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          </BorderBeam>
-        </motion.div>
+            </BorderBeam>
+          </motion.div>
 
-        {/* ── Banners ── */}
-        <AnimatePresence>
-          {isSunday && (
-            <motion.div key="sun" className="alert alert-warn" variants={fadeUp} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
-              <span className="alert-icon">🛑</span>
-              <div><div className="alert-title">रविवार — साप्ताहिक अवकाश</div><div>Enjoy your day off!</div></div>
+          {/* ── Monthly Summary KPI Cards ── */}
+          <motion.div className="staff-metrics-grid" variants={fadeUp}>
+            <MagicCard className="staff-stat-card" gradientColor="rgba(22, 163, 74, 0.2)">
+              <div className="stat-card-icon icon-emerald">
+                <Award size={18} />
+              </div>
+              <div className="stat-card-body">
+                <span className="stat-card-label">Full Shifts (8h)</span>
+                <span className="stat-card-val"><AnimatedNumber value={fullDays} /></span>
+                <span className="stat-card-sub">₹450 per shift</span>
+              </div>
+            </MagicCard>
+
+            <MagicCard className="staff-stat-card" gradientColor="rgba(232, 118, 26, 0.2)">
+              <div className="stat-card-icon icon-saff">
+                <Clock size={18} />
+              </div>
+              <div className="stat-card-body">
+                <span className="stat-card-label">Total Hours</span>
+                <span className="stat-card-val"><AnimatedNumber value={totalH} suffix="h" decimals={1} /></span>
+                <span className="stat-card-sub">{completed.length} shifts logged</span>
+              </div>
+            </MagicCard>
+
+            <MagicCard className="staff-stat-card" gradientColor="rgba(30, 74, 122, 0.2)">
+              <div className="stat-card-icon icon-navy">
+                <IndianRupee size={18} />
+              </div>
+              <div className="stat-card-body">
+                <span className="stat-card-label">Estimated Salary</span>
+                <span className="stat-card-val font-bold text-emerald">
+                  <AnimatedNumber value={earned} prefix="₹" decimals={0} />
+                </span>
+                <span className="stat-card-sub">This month</span>
+              </div>
+            </MagicCard>
+          </motion.div>
+
+          {/* ── Personal Shift Hours Mini Chart ── */}
+          {personalChartData.length > 2 && (
+            <motion.div className="staff-panel-card" variants={fadeUp}>
+              <div className="staff-panel-header">
+                <div>
+                  <h3 className="staff-panel-title">Recent Shift Hours</h3>
+                  <p className="staff-panel-subtitle">Hours recorded per day this month</p>
+                </div>
+                <div className="trend-badge">
+                  <TrendingUp size={13} />
+                  <span>Activity</span>
+                </div>
+              </div>
+              <div style={{ width: '100%', height: 160 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={personalChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorPersonalHours" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1e4a7a" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#1e4a7a" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 9]} />
+                    <Tooltip
+                      formatter={(val) => [`${val} hrs`, 'Work Hours']}
+                      contentStyle={{ backgroundColor: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="hours"
+                      stroke="#1e4a7a"
+                      strokeWidth={2.5}
+                      fillOpacity={1}
+                      fill="url(#colorPersonalHours)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </motion.div>
           )}
-          {!isSunday && !checkedIn && !checkedOut && !inWindow && (
-            <motion.div key="win" className="alert alert-info" variants={fadeUp} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
-              <span className="alert-icon">⏰</span>
-              <div><div className="alert-title">Entry Window Closed</div><div>Check-in only between <strong>6:00 AM – 8:00 AM</strong>.</div></div>
-            </motion.div>
-          )}
-          {checkedIn && (
-            <motion.div key="duty" className="alert alert-info" variants={fadeUp} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
-              <span className="alert-icon">🔵</span>
-              <div>ड्यूटी पर: {fmtT(todayRec.in_time)} से। Check out करना न भूलें।</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* ── Shimmer Action Buttons ── */}
-        <motion.div className="action-grid" variants={fadeUp}>
-          <ShimmerButton
-            disabled={!canCheckIn || btnLoading === 'in'}
-            onClick={doCheckIn}
-            background="linear-gradient(145deg, #0f7a36, #15803d)"
-            shadow="0 8px 28px rgba(21,128,61,0.4)"
-            shimmerColor="rgba(255,255,255,0.35)"
-          >
-            {btnLoading === 'in'
-              ? <span className="spinner spinner-sm" />
-              : <span className="action-icon">🟢</span>
-            }
-            <span className="action-label">Check In</span>
-            <span className="action-sub">उपस्थिति दर्ज करें</span>
-          </ShimmerButton>
-
-          <ShimmerButton
-            disabled={!canCheckOut || btnLoading === 'out'}
-            onClick={doCheckOut}
-            background="linear-gradient(145deg, #b55509, #d97706)"
-            shadow="0 8px 28px rgba(217,119,6,0.4)"
-            shimmerColor="rgba(255,255,255,0.35)"
-          >
-            {btnLoading === 'out'
-              ? <span className="spinner spinner-sm" />
-              : <span className="action-icon">🔴</span>
-            }
-            <span className="action-label">Check Out</span>
-            <span className="action-sub">वापसी दर्ज करें</span>
-          </ShimmerButton>
-        </motion.div>
-
-        {/* ── Month Stats with MagicCard ── */}
-        <motion.div variants={fadeUp}>
-          <MagicCard className="panel" gradientColor="rgba(30,74,122,0.12)">
-            <div className="panel-hdr">
-              <div className="panel-title">
-                <span className="panel-icon">📊</span>
-                <GradientText colors={['#0b1f38', '#1e4a7a', '#138808', '#0b1f38']}>
-                  Monthly Summary
-                </GradientText>
+          {/* ── Shift History Log ── */}
+          <motion.div className="staff-panel-card" variants={fadeUp}>
+            <div className="staff-panel-header">
+              <div className="panel-title-with-icon">
+                <History size={17} className="text-muted" />
+                <h3 className="staff-panel-title">Monthly Shift History</h3>
               </div>
-              <span className="panel-label">{monthLabel}</span>
-            </div>
-            <div className="month-stats">
-              <div className="stat-box">
-                <div className="stat-val"><AnimatedNumber value={fullDays} /></div>
-                <div className="stat-lbl">Full Days</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-val"><AnimatedNumber value={shortDays} /></div>
-                <div className="stat-lbl">Short Shifts</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-val"><AnimatedNumber value={totalH} suffix="h" decimals={1} /></div>
-                <div className="stat-lbl">Total Hours</div>
-              </div>
-              <div className="stat-box stat-box-green">
-                <div className="stat-val"><AnimatedNumber value={earned} prefix="₹" decimals={0} /></div>
-                <div className="stat-lbl">Earned / अर्जित</div>
-              </div>
-            </div>
-          </MagicCard>
-        </motion.div>
-
-        {/* ── Timeline ── */}
-        <motion.div variants={fadeUp}>
-          <MagicCard className="panel" gradientColor="rgba(19,136,8,0.08)">
-            <div className="panel-hdr">
-              <div className="panel-title">
-                <span className="panel-icon">📋</span>
-                Attendance History
-              </div>
-              <span className="panel-label">{monthRecs.length} records</span>
+              <span className="badge-count">{monthRecs.length} records</span>
             </div>
 
-            {monthRecs.length === 0 ? (
-              <div className="empty-state">
-                <div style={{ fontSize: '2.2rem', marginBottom: '8px' }}>📭</div>
-                <div>इस माह कोई उपस्थिति नहीं</div>
-              </div>
-            ) : (
-              <div className="timeline">
-                {monthRecs.map((r, i) => {
+            <div className="history-list">
+              {monthRecs.length === 0 ? (
+                <div className="empty-history">
+                  <Calendar size={28} className="empty-icon" />
+                  <p>No attendance records logged for this month yet.</p>
+                </div>
+              ) : (
+                monthRecs.map(r => {
                   const h = hrs(r.in_time, r.out_time);
-                  const full = h >= 8;
-                  const out = !!r.out_time;
+                  const isFull = h >= 8;
+                  const isToday = r.date === todayIST();
                   return (
-                    <motion.div
-                      key={r.id}
-                      className="tl-item"
-                      initial={{ opacity: 0, x: -14 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04, duration: 0.35 }}
-                    >
-                      <div className={`tl-dot ${out && full ? 'tl-dot-ok' : out ? 'tl-dot-warn' : 'tl-dot-blue'}`}>
-                        {out && full ? '✅' : out ? '⚡' : '🔵'}
-                      </div>
-                      <div className="tl-body">
-                        <div className="tl-main">
-                          {r.date}
-                          {!out && <span className="badge badge-blue">On Duty</span>}
-                          {out && full && <span className="badge badge-ok">✓ Full</span>}
-                          {out && !full && <span className="badge badge-warn">Short</span>}
-                        </div>
-                        <div className="tl-sub">
-                          In: {fmtT(r.in_time)} &nbsp;|&nbsp; Out: {fmtT(r.out_time)}
-                          {out && ` · ${h.toFixed(2)}h · ${money(pay(h))}`}
-                          {!out && ' — In progress...'}
+                    <div key={r.id} className="history-item">
+                      <div className="history-left">
+                        <div className={`history-dot ${!r.out_time ? 'dot-active' : isFull ? 'dot-success' : 'dot-warn'}`} />
+                        <div>
+                          <div className="history-date">
+                            <span>{r.date}</span>
+                            {isToday && <span className="today-chip">Today</span>}
+                          </div>
+                          <div className="history-times font-mono">
+                            <span>In: {fmtT(r.in_time)}</span>
+                            {r.out_time && <span> • Out: {fmtT(r.out_time)}</span>}
+                          </div>
                         </div>
                       </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </MagicCard>
-        </motion.div>
 
-      </motion.main>
+                      <div className="history-right">
+                        {r.out_time ? (
+                          <>
+                            <div className="history-hours">{h.toFixed(2)}h</div>
+                            <div className="history-pay text-emerald">{money(pay(h))}</div>
+                          </>
+                        ) : (
+                          <span className="badge-on-duty">On Duty</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      </main>
     </div>
   );
 }

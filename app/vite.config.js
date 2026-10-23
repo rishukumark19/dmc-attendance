@@ -5,4 +5,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   base: '/dmc-attendance/',   // GitHub Pages repo name
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
 })
