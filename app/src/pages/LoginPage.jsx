@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { GlassInputWrapper, FeatureCard } from '../components/ui/sign-in';
 import {
   ShieldCheck,
   User,
@@ -12,6 +13,10 @@ import {
   Lock,
   AlertCircle,
   RefreshCw,
+  CheckCircle2,
+  IndianRupee,
+  Clock,
+  Sparkles,
 } from '../components/Icons';
 import './LoginPage.css';
 
@@ -45,7 +50,7 @@ export default function LoginPage() {
       });
       if (error) throw error;
     } catch (e) {
-      showErr('Invalid Employee ID or PIN. Please verify credentials.');
+      showErr('Invalid Employee ID or PIN. Please verify your credentials.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +73,7 @@ export default function LoginPage() {
       const { data: profile } = await supabase.from('staff').select('role').eq('user_id', data.user.id).single();
       if (profile?.role !== 'admin') {
         await supabase.auth.signOut();
-        throw new Error('This account does not have administrative access.');
+        throw new Error('This account does not have administrator privileges.');
       }
     } catch (e) {
       showErr(e.message?.includes('Invalid') ? 'Invalid administrator credentials.' : e.message);
@@ -77,75 +82,60 @@ export default function LoginPage() {
     }
   }
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 30, scale: 0.98 },
-    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
-  };
-  const formVariants = {
-    hidden: { opacity: 0, x: role === 'staff' ? -16 : 16 },
-    visible: { opacity: 1, x: 0, transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] } },
-    exit: { opacity: 0, x: role === 'staff' ? 16 : -16, transition: { duration: 0.15 } },
-  };
-
   return (
-    <div className="login-wrapper">
-      {/* Background Gradients */}
-      <div className="login-bg-glow glow-top" />
-      <div className="login-bg-glow glow-bottom" />
-
-      <motion.div
-        className="login-card-container"
-        variants={cardVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <div className="tristrip" />
-
-        <div className="login-card-content">
-          {/* Header Branding */}
-          <div className="login-brand-header">
-            <div className="login-logo-container">
-              <img
-                src={`${import.meta.env.BASE_URL}logo.png`}
-                alt="DMC Logo"
-                className="login-emblem"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-            </div>
-            <h1 className="login-title-hi">धनबाद नगर निगम</h1>
-            <h2 className="login-title-en">Dhanbad Municipal Corporation</h2>
-            <div className="login-portal-badge">
-              <Building2 size={13} />
-              <span>Attendance & Payroll System</span>
+    <div className="signin-page-layout">
+      {/* ── Left Column: Sign-in Form ── */}
+      <section className="signin-form-section">
+        <div className="signin-form-wrapper">
+          {/* Brand Row */}
+          <div className="signin-brand-row">
+            <img
+              src={`${import.meta.env.BASE_URL}logo.png`}
+              alt="DMC Logo"
+              className="signin-brand-logo"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+            <div>
+              <div className="signin-org-title">धनबाद नगर निगम</div>
+              <div className="signin-org-subtitle">Dhanbad Municipal Corporation</div>
             </div>
           </div>
 
-          {/* Role Selection Tabs */}
-          <div className="login-tabs">
+          <div className="signin-headings">
+            <h1 className="signin-main-title">
+              Sign In <span className="text-highlight">/ प्रवेश</span>
+            </h1>
+            <p className="signin-description">
+              Access employee daily attendance and municipal payroll administration
+            </p>
+          </div>
+
+          {/* Role Tabs */}
+          <div className="signin-role-tabs">
             <button
               type="button"
-              className={`login-tab-btn ${role === 'staff' ? 'active' : ''}`}
+              className={`signin-role-btn ${role === 'staff' ? 'active' : ''}`}
               onClick={() => { setRole('staff'); setError(''); }}
             >
-              <User size={15} />
+              <User size={16} />
               <span>Staff / कर्मचारी</span>
             </button>
             <button
               type="button"
-              className={`login-tab-btn ${role === 'admin' ? 'active' : ''}`}
+              className={`signin-role-btn ${role === 'admin' ? 'active' : ''}`}
               onClick={() => { setRole('admin'); setError(''); }}
             >
-              <ShieldCheck size={15} />
+              <ShieldCheck size={16} />
               <span>Administrator</span>
             </button>
           </div>
 
-          {/* Error Message */}
+          {/* Alert Error */}
           <AnimatePresence mode="wait">
             {error && (
               <motion.div
                 key={errKey.current}
-                className="login-alert-error"
+                className="signin-alert-err"
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -157,136 +147,196 @@ export default function LoginPage() {
             )}
           </AnimatePresence>
 
-          {/* Form Switcher */}
+          {/* Dynamic Form */}
           <AnimatePresence mode="wait">
             {role === 'staff' ? (
               <motion.form
                 key="staff"
                 onSubmit={doStaffLogin}
-                className="login-fields"
-                variants={formVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
+                className="signin-form"
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.25 }}
               >
-                <div className="field-group">
-                  <label className="field-label">Employee ID / कर्मचारी क्रमांक</label>
-                  <div className="field-input-box">
-                    <User size={16} className="field-icon" />
-                    <input
-                      type="text"
-                      className="field-input font-mono"
-                      placeholder="e.g. EMP001"
-                      value={staffId}
-                      onChange={e => setStaffId(e.target.value)}
-                      autoCapitalize="characters"
-                      autoComplete="username"
-                      spellCheck={false}
-                    />
-                  </div>
+                <div className="signin-field-group">
+                  <label className="signin-field-label">Employee ID / कर्मचारी क्रमांक</label>
+                  <GlassInputWrapper>
+                    <div className="glass-input-inner">
+                      <User size={17} className="glass-input-icon" />
+                      <input
+                        type="text"
+                        className="glass-input font-mono"
+                        placeholder="e.g. EMP001"
+                        value={staffId}
+                        onChange={e => setStaffId(e.target.value)}
+                        autoCapitalize="characters"
+                        autoComplete="username"
+                        spellCheck={false}
+                        autoFocus
+                      />
+                    </div>
+                  </GlassInputWrapper>
                 </div>
 
-                <div className="field-group">
-                  <label className="field-label">Login PIN / पिन</label>
-                  <div className="field-input-box">
-                    <KeyRound size={16} className="field-icon" />
-                    <input
-                      type={showPin ? 'text' : 'password'}
-                      className="field-input font-mono"
-                      placeholder="• • • •"
-                      maxLength={8}
-                      value={staffPin}
-                      onChange={e => setStaffPin(e.target.value)}
-                      inputMode="numeric"
-                    />
-                    <button
-                      type="button"
-                      className="field-eye-btn"
-                      onClick={() => setShowPin(v => !v)}
-                      aria-label="Toggle PIN visibility"
-                    >
-                      {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+                <div className="signin-field-group">
+                  <label className="signin-field-label">Login PIN / 4-अंकीय पिन</label>
+                  <GlassInputWrapper>
+                    <div className="glass-input-inner">
+                      <KeyRound size={17} className="glass-input-icon" />
+                      <input
+                        type={showPin ? 'text' : 'password'}
+                        className="glass-input font-mono"
+                        placeholder="• • • •"
+                        maxLength={8}
+                        value={staffPin}
+                        onChange={e => setStaffPin(e.target.value)}
+                        inputMode="numeric"
+                      />
+                      <button
+                        type="button"
+                        className="glass-eye-toggle"
+                        onClick={() => setShowPin(v => !v)}
+                        aria-label="Toggle PIN visibility"
+                      >
+                        {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </GlassInputWrapper>
+                </div>
+
+                <div className="signin-options-row">
+                  <label className="signin-checkbox-label">
+                    <input type="checkbox" defaultChecked className="signin-checkbox" />
+                    <span>Remember on this device</span>
+                  </label>
+                  <span className="signin-help-link">Window: 6:00 – 8:00 AM</span>
                 </div>
 
                 <button
                   type="submit"
-                  className="login-submit-btn"
+                  className="signin-submit-btn"
                   disabled={loading}
                 >
-                  {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} />}
-                  <span>{loading ? 'Verifying...' : 'Sign In as Staff'}</span>
+                  {loading ? <RefreshCw size={17} className="spin" /> : <ArrowRight size={17} />}
+                  <span>{loading ? 'Authenticating...' : 'Sign In as Staff'}</span>
                 </button>
 
-                <p className="login-help-text">
-                  PIN forgot or need access? Contact the Municipal Admin.
+                <p className="signin-footnote">
+                  Forgot PIN or not registered? Contact the DMC Administrator.
                 </p>
               </motion.form>
             ) : (
               <motion.form
                 key="admin"
                 onSubmit={doAdminLogin}
-                className="login-fields"
-                variants={formVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
+                className="signin-form"
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -12 }}
+                transition={{ duration: 0.25 }}
               >
-                <div className="field-group">
-                  <label className="field-label">Admin Username or Email</label>
-                  <div className="field-input-box">
-                    <ShieldCheck size={16} className="field-icon" />
-                    <input
-                      type="text"
-                      className="field-input"
-                      placeholder="admin"
-                      value={adminUser}
-                      onChange={e => setAdminUser(e.target.value)}
-                      autoComplete="username"
-                    />
-                  </div>
+                <div className="signin-field-group">
+                  <label className="signin-field-label">Administrator Username or Email</label>
+                  <GlassInputWrapper>
+                    <div className="glass-input-inner">
+                      <ShieldCheck size={17} className="glass-input-icon" />
+                      <input
+                        type="text"
+                        className="glass-input"
+                        placeholder="admin"
+                        value={adminUser}
+                        onChange={e => setAdminUser(e.target.value)}
+                        autoComplete="username"
+                        autoFocus
+                      />
+                    </div>
+                  </GlassInputWrapper>
                 </div>
 
-                <div className="field-group">
-                  <label className="field-label">Admin Password</label>
-                  <div className="field-input-box">
-                    <Lock size={16} className="field-icon" />
-                    <input
-                      type={showPass ? 'text' : 'password'}
-                      className="field-input"
-                      placeholder="••••••••"
-                      value={adminPass}
-                      onChange={e => setAdminPass(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="field-eye-btn"
-                      onClick={() => setShowPass(v => !v)}
-                      aria-label="Toggle password visibility"
-                    >
-                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+                <div className="signin-field-group">
+                  <label className="signin-field-label">Admin Password</label>
+                  <GlassInputWrapper>
+                    <div className="glass-input-inner">
+                      <Lock size={17} className="glass-input-icon" />
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        className="glass-input"
+                        placeholder="••••••••"
+                        value={adminPass}
+                        onChange={e => setAdminPass(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="glass-eye-toggle"
+                        onClick={() => setShowPass(v => !v)}
+                        aria-label="Toggle password visibility"
+                      >
+                        {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </GlassInputWrapper>
+                </div>
+
+                <div className="signin-options-row">
+                  <label className="signin-checkbox-label">
+                    <input type="checkbox" defaultChecked className="signin-checkbox" />
+                    <span>Keep admin session</span>
+                  </label>
+                  <span className="signin-help-link">Secure Portal Access</span>
                 </div>
 
                 <button
                   type="submit"
-                  className="login-submit-btn admin-submit-btn"
+                  className="signin-submit-btn admin-theme-btn"
                   disabled={loading}
                 >
-                  {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} />}
+                  {loading ? <RefreshCw size={17} className="spin" /> : <ArrowRight size={17} />}
                   <span>{loading ? 'Authenticating...' : 'Sign In as Administrator'}</span>
                 </button>
               </motion.form>
             )}
           </AnimatePresence>
         </div>
+      </section>
 
-        <div className="login-card-footer">
-          <span>Official Portal &nbsp;•&nbsp; Dhanbad Municipal Corporation</span>
+      {/* ── Right Column: Hero Showcase + Floating Feature Cards ── */}
+      <section className="signin-hero-section">
+        <div className="signin-hero-bg">
+          <div className="hero-gradient-overlay" />
+
+          {/* Top Emblem Badge */}
+          <div className="hero-top-badge">
+            <span className="hero-badge-dot" />
+            <span>Official Government Portal • Dhanbad</span>
+          </div>
+
+          {/* Floating Testimonial / System Highlights (from 21st.dev template) */}
+          <div className="floating-features-container">
+            <FeatureCard
+              icon={CheckCircle2}
+              title="Daily Attendance"
+              handle="@realtime-sync"
+              text="Mandatory 6:00 to 8:00 AM check-in window with instant shift verification."
+              delay="card-delay-1"
+            />
+            <FeatureCard
+              icon={IndianRupee}
+              title="Automated Payroll"
+              handle="@fair-wages"
+              text="Calculates ₹450 daily rate for verified 8-hour shifts with one-click CSV export."
+              delay="card-delay-2"
+            />
+            <FeatureCard
+              icon={Building2}
+              title="Civic Sanitation"
+              handle="@dmc-operations"
+              text="Empowering municipal staff and administrators with transparent record keeping."
+              delay="card-delay-3"
+            />
+          </div>
         </div>
-      </motion.div>
+      </section>
     </div>
   );
 }
