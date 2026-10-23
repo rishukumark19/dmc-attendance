@@ -123,6 +123,44 @@
   line-height: 1.5;
 }
 
+/* Reciprocity & Loss Aversion Utility Banner */
+.signin-utility-banner {
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.utility-banner-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.utility-badge-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #16a34a;
+  box-shadow: 0 0 8px #16a34a;
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+.utility-badge-text {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.utility-banner-sub {
+  font-size: 0.72rem;
+  color: #475569;
+  line-height: 1.35;
+}
+
 /* Role Tabs */
 .signin-role-tabs {
   display: grid;

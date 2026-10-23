@@ -90,9 +90,117 @@
 .status-neutral { background-color: #f1f5f9; color: #64748b; }
 .status-pulse   { background-color: #dbeafe; color: #1d4ed8; animation: pulse-ring 2s infinite ease-in-out; }
 
+/* 4. IKEA Effect: Assigned Ward Customization */
+.ward-selector-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 12px;
+}
+
+.ward-selector-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.ward-select-input {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+  cursor: pointer;
+  max-width: 220px;
+}
+
+.ward-select-input:focus {
+  border-color: #1e3a8a;
+}
+
+/* 2. Goal Gradient Effect: Progress Bar (Never start at 0%) */
+.shift-goal-gradient-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goal-gradient-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.goal-step-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.goal-step-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.goal-progress-track {
+  width: 100%;
+  height: 7px;
+  background-color: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #e8761a, #22c55e);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+/* 5. Loss Aversion: Alert when checking out early */
+.loss-aversion-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.loss-alert-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.loss-alert-text strong {
+  color: #92400e;
+}
+
 .hero-center {
   text-align: center;
-  padding: 10px 0;
+  padding: 8px 0;
 }
 
 .digital-clock {

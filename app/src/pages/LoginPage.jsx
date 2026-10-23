@@ -23,9 +23,9 @@ import './LoginPage.css';
 
 export default function LoginPage() {
   const [role, setRole] = useState('staff');
-  const [staffId, setStaffId] = useState('');
+  const [staffId, setStaffId] = useState(() => localStorage.getItem('dmc_last_staff_id') || 'EMP001');
   const [staffPin, setStaffPin] = useState('');
-  const [adminUser, setAdminUser] = useState('');
+  const [adminUser, setAdminUser] = useState(() => localStorage.getItem('dmc_last_admin_user') || 'admin');
   const [adminPass, setAdminPass] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -50,6 +50,7 @@ export default function LoginPage() {
         password: pin,
       });
       if (error) throw error;
+      localStorage.setItem('dmc_last_staff_id', id);
     } catch (e) {
       showErr('Invalid Employee ID or PIN. Please verify your credentials.');
     } finally {
@@ -71,6 +72,7 @@ export default function LoginPage() {
           : `${user.toLowerCase()}@nagarnigam.local`;
       const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
       if (error) throw error;
+      localStorage.setItem('dmc_last_admin_user', user);
       const { data: profile } = await supabase.from('staff').select('role').eq('user_id', data.user.id).single();
       if (profile?.role !== 'admin') {
         await supabase.auth.signOut();
@@ -109,6 +111,17 @@ export default function LoginPage() {
             <p className="signin-description">
               Access employee daily attendance and municipal payroll administration
             </p>
+          </div>
+
+          {/* Reciprocity & Loss Aversion Live Utility Banner */}
+          <div className="signin-utility-banner">
+            <div className="utility-banner-row">
+              <span className="utility-badge-pulse" />
+              <span className="utility-badge-text">Shift Window: 6:00 – 8:00 AM IST • Rate: ₹450/8h</span>
+            </div>
+            <div className="utility-banner-sub">
+              Log in before 8:00 AM to prevent losing today's full shift attendance credit.
+            </div>
           </div>
 
           {/* Role Tabs */}

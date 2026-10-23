@@ -61,6 +61,15 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [btnLoading, setBtnLoading] = useState('');
 
+  const WARDS = [
+    'Ward 12 (Bank More / बैंक मोड़)',
+    'Ward 24 (Hirapur / हीरापुर)',
+    'Ward 31 (Steel Gate / स्टील गेट)',
+    'Ward 45 (Saraidhela / सरायढेला)',
+    'Ward 08 (Katras / कतरास)'
+  ];
+  const [assignedWard, setAssignedWard] = useState(() => localStorage.getItem('dmc_assigned_ward') || WARDS[0]);
+
   const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   const dateStr = now.toLocaleDateString('hi-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -206,9 +215,47 @@ export default function StaffPage() {
                   </div>
                 </div>
 
+                {/* 4. IKEA Effect: Assigned Ward Customization */}
+                <div className="ward-selector-row">
+                  <span className="ward-selector-label">📍 Duty Ward:</span>
+                  <select
+                    className="ward-select-input"
+                    value={assignedWard}
+                    onChange={(e) => {
+                      setAssignedWard(e.target.value);
+                      localStorage.setItem('dmc_assigned_ward', e.target.value);
+                      toast.success(`Assigned Ward updated: ${e.target.value}`);
+                    }}
+                  >
+                    {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+
                 <div className="hero-center">
                   <div className="digital-clock font-mono">{timeStr}</div>
                   <div className="digital-date">{dateStr}</div>
+                </div>
+
+                {/* 2. Goal Gradient Effect: 3-step shift progress (never start at 0%) */}
+                <div className="shift-goal-gradient-card">
+                  <div className="goal-gradient-header">
+                    <span className="goal-step-label">
+                      {!todayRec && 'Shift Step 1 of 3: Check-in Ready'}
+                      {checkedIn && `Shift Step 2 of 3: Active Shift (${Math.min(100, Math.round(((Number(liveHoursWorked) || 0) / 8) * 100))}% towards ₹450)`}
+                      {checkedOut && 'Shift Step 3 of 3: Shift Complete'}
+                    </span>
+                    <span className="goal-step-badge">
+                      {!todayRec ? '33% initiated' : checkedIn ? `${Math.max(33, Math.min(95, Math.round(33 + ((Number(liveHoursWorked) || 0) / 8) * 60)))}%` : '100% complete'}
+                    </span>
+                  </div>
+                  <div className="goal-progress-track">
+                    <div
+                      className="goal-progress-fill"
+                      style={{
+                        width: !todayRec ? '33%' : checkedIn ? `${Math.max(33, Math.min(95, Math.round(33 + ((Number(liveHoursWorked) || 0) / 8) * 60)))}%` : '100%'
+                      }}
+                    />
+                  </div>
                 </div>
 
                 {/* Shift Details or Live Timer */}
@@ -223,6 +270,16 @@ export default function StaffPage() {
                     </div>
                     <div className="live-banner-hours font-mono">
                       {liveHoursWorked}h
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Loss Aversion: Alert when checking out before 8 hours */}
+                {checkedIn && Number(liveHoursWorked) < 8 && (
+                  <div className="loss-aversion-alert">
+                    <AlertCircle size={16} className="loss-alert-icon" />
+                    <div className="loss-alert-text">
+                      <strong>Prevent Wage Loss:</strong> You have completed {liveHoursWorked}h. Checking out now pays {money(pay(Number(liveHoursWorked)))} instead of ₹450. Complete {(8 - Number(liveHoursWorked)).toFixed(1)}h more to claim your full guaranteed ₹450 wage!
                     </div>
                   </div>
                 )}
@@ -308,7 +365,9 @@ export default function StaffPage() {
                 <span className="stat-card-val font-bold text-emerald">
                   <AnimatedNumber value={earned} prefix="₹" decimals={0} />
                 </span>
-                <span className="stat-card-sub">This month</span>
+                <span className="stat-card-sub font-semibold text-navy">
+                  Anchor: ₹11,700 max ({fullDays}/26 shifts)
+                </span>
               </div>
             </MagicCard>
           </motion.div>

@@ -47,10 +47,22 @@ const MONTHS = fillMonths(12);
 // ──────────────────────────────────────────────
 // Add Staff Modal (Shadcn Dialog Style)
 // ──────────────────────────────────────────────
-function AddStaffModal({ onClose, onAdded, existingIds }) {
+function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
+  const nextDefaultId = useMemo(() => {
+    let maxNum = 0;
+    existingIds.forEach(id => {
+      const match = String(id).match(/EMP(\d+)/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    return `EMP${String(maxNum + 1).padStart(3, '0')}`;
+  }, [existingIds]);
+
   const [name, setName] = useState('');
-  const [empId, setEmpId] = useState('');
-  const [pin, setPin] = useState('');
+  const [empId, setEmpId] = useState(nextDefaultId);
+  const [pin, setPin] = useState('1234');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
