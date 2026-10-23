@@ -1,0 +1,52 @@
+@keyframes shimmer-sweep {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+.shimmer-btn {
+  position: relative;
+  overflow: hidden;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: var(--font);
+  background: var(--btn-bg);
+  box-shadow: var(--btn-shadow), inset 0 1px 0 rgba(255,255,255,0.15);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 22px 14px; width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shimmer-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+
+/* Sweeping light */
+.shimmer-sweep {
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--shimmer-color, rgba(255,255,255,0.3)),
+    transparent
+  );
+  transform: skewX(-20deg);
+  pointer-events: none;
+  animation: shimmer-sweep 3s ease-in-out infinite;
+}
+
+.shimmer-btn:disabled .shimmer-sweep {
+  display: none;
+}
+
+.shimmer-content {
+  position: relative;
+  z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: 100%;
+}

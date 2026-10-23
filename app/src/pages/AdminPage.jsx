@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Header from '../components/Header';
 import AnimatedNumber from '../components/AnimatedNumber';
+import MagicCard from '../components/MagicCard';
+import GradientText from '../components/GradientText';
+import BorderBeam from '../components/BorderBeam';
 import { useAuth } from '../context/AuthContext';
 import { supabase, makeTempClient } from '../lib/supabase';
 import { todayIST, hrs, pay, money, fmtT, getInitials, fillMonths, pad } from '../lib/utils';
@@ -236,31 +239,32 @@ export default function AdminPage() {
       >
         {/* ── Neumorphic Stat Cards ── */}
         <motion.div className="stats-grid" variants={fadeUp}>
-          <div className="stat-card stat-navy">
+          <MagicCard className="stat-card stat-navy" gradientColor="rgba(20,51,90,0.2)">
             <span className="sc-icon">👥</span>
             <div className="sc-lbl">Total Staff</div>
             <div className="sc-val"><AnimatedNumber value={allStaff.length} /></div>
             <div className="sc-sub">Registered employees</div>
-          </div>
-          <div className="stat-card stat-green">
+          </MagicCard>
+          <MagicCard className="stat-card stat-green" gradientColor="rgba(21,128,61,0.2)">
             <span className="sc-icon">✅</span>
             <div className="sc-lbl">Today Present</div>
             <div className="sc-val"><AnimatedNumber value={todayRecs.length} /></div>
             <div className="sc-sub">{new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</div>
-          </div>
-          <div className="stat-card stat-saff">
+          </MagicCard>
+          <MagicCard className="stat-card stat-saff" gradientColor="rgba(232,118,26,0.2)">
             <span className="sc-icon">⏱️</span>
             <div className="sc-lbl">Full Shifts</div>
             <div className="sc-val"><AnimatedNumber value={totalFull} /></div>
             <div className="sc-sub">This month</div>
-          </div>
-          <div className="stat-card stat-blue">
+          </MagicCard>
+          <MagicCard className="stat-card stat-blue" gradientColor="rgba(29,78,216,0.2)">
             <span className="sc-icon">💰</span>
             <div className="sc-lbl">Salary Payable</div>
             <div className="sc-val sc-val-sm"><AnimatedNumber value={totalPay} prefix="₹" decimals={0} /></div>
             <div className="sc-sub">{salMonthLabel}</div>
-          </div>
+          </MagicCard>
         </motion.div>
+
 
         {/* ── Tabs ── */}
         <motion.div className="admin-tabs" variants={fadeUp}>

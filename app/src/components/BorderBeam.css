@@ -1,0 +1,39 @@
+@keyframes beam-rotate {
+  from { --beam-angle: 0deg; }
+  to   { --beam-angle: 360deg; }
+}
+@property --beam-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.border-beam-wrap {
+  position: relative;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: transparent;
+}
+
+.border-beam-anim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 30%,
+    var(--beam-from, #e8761a) 50%,
+    var(--beam-to, #1e4a7a) 60%,
+    transparent 80%
+  );
+  animation: beam-rotate var(--beam-duration, 10s) linear infinite;
+  z-index: 0;
+}
+
+.border-beam-inner {
+  position: relative;
+  z-index: 1;
+  border-radius: inherit;
+  background: inherit;
+  height: 100%;
+}

@@ -1,0 +1,16 @@
+@keyframes gradient-scroll {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-text {
+  background: var(--gt-gradient);
+  background-size: var(--gt-size, 300%) 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-scroll 6s linear infinite;
+  font-weight: 800;
+  display: inline-block;
+}

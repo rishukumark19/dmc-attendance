@@ -1,0 +1,19 @@
+.magic-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: inherit;
+  cursor: default;
+}
+.magic-spotlight {
+  pointer-events: none;
+  position: absolute;
+  width: 700px; height: 700px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s ease;
+  z-index: 0;
+}
+.magic-card-inner {
+  position: relative;
+  z-index: 1;
+}
