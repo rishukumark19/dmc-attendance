@@ -27,7 +27,20 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    setSession(null);
+    setProfile(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('SignOut error:', e);
+    }
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (e) {}
   };
 
   return (

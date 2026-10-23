@@ -7,8 +7,8 @@ export default function Header({ title, subtitle }) {
   const { profile, logout } = useAuth();
   const initials = profile ? getInitials(profile.name) : '?';
 
-  async function handleLogout() {
-    if (!confirm('Logout?')) return;
+  async function handleLogout(e) {
+    if (e) e.preventDefault();
     await logout();
   }
 
