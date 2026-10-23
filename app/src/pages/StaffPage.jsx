@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import Header from '../components/Header';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -20,7 +21,6 @@ export default function StaffPage() {
   const [todayRec, setTodayRec] = useState(null);
   const [monthRecs, setMonthRecs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actionMsg, setActionMsg] = useState(null);
   const [btnLoading, setBtnLoading] = useState('');
 
   const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
@@ -29,7 +29,7 @@ export default function StaffPage() {
   const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const isSunday = istNow.getDay() === 0;
   const mins = istNow.getHours() * 60 + istNow.getMinutes();
-  const inWindow = mins >= 360 && mins < 481; // 6:00 AM – 8:00 AM
+  const inWindow = mins >= 360 && mins < 481; // 6:00 AM – 8:01 AM
   const checkedOut = !!todayRec?.out_time;
   const checkedIn = !!todayRec && !checkedOut;
 
@@ -72,6 +72,7 @@ export default function StaffPage() {
 
   async function doCheckIn() {
     setBtnLoading('in');
+    const tId = toast.loading('Marking attendance...');
     try {
       const { data, error } = await supabase.rpc('do_check_in', {
         p_emp_id: profile.emp_id, p_staff_name: profile.name,
@@ -79,9 +80,9 @@ export default function StaffPage() {
       if (error) throw error;
       setTodayRec(data);
       await loadData();
-      setActionMsg({ type: 'ok', text: '✅ Check-in सफल! उपस्थिति दर्ज हो गई।' });
+      toast.success('✅ Check-in successful! Attendance recorded.', { id: tId });
     } catch (e) {
-      setActionMsg({ type: 'err', text: 'Check-in failed: ' + e.message });
+      toast.error('Check-in failed: ' + e.message, { id: tId });
     } finally {
       setBtnLoading('');
     }
@@ -90,15 +91,16 @@ export default function StaffPage() {
   async function doCheckOut() {
     if (!todayRec) return;
     setBtnLoading('out');
+    const tId = toast.loading('Recording checkout...');
     try {
       const { data, error } = await supabase.rpc('do_check_out', { p_id: todayRec.id });
       if (error) throw error;
       setTodayRec(data);
       await loadData();
       const h = hrs(data.in_time, data.out_time);
-      setActionMsg({ type: 'ok', text: `✅ Check-out complete! ${h.toFixed(2)}h · ${money(pay(h))}` });
+      toast.success(`✅ Check-out complete! ${h.toFixed(2)}h · ${money(pay(h))}`, { id: tId });
     } catch (e) {
-      setActionMsg({ type: 'err', text: 'Check-out failed: ' + e.message });
+      toast.error('Check-out failed: ' + e.message, { id: tId });
     } finally {
       setBtnLoading('');
     }
@@ -119,13 +121,19 @@ export default function StaffPage() {
         </div>
       ) : (
         <main className="staff-main">
+
           {/* Hero card */}
           <div className="hero-card">
             <div className="hero-orb hero-orb1" />
             <div className="hero-orb hero-orb2" />
+            <div className="hero-orb hero-orb3" />
             <div className="hero-content">
-              <div className="hero-name">{profile?.name}</div>
-              <div className="hero-empid">Employee ID: {profile?.emp_id}</div>
+              <div className="hero-row">
+                <div className="hero-info">
+                  <div className="hero-name">{profile?.name}</div>
+                  <div className="hero-empid">EMP · {profile?.emp_id}</div>
+                </div>
+              </div>
               <div className="hero-clock">{timeStr}</div>
               <div className="hero-date">{dateStr}</div>
               <span className={`status-pill ${pill.cls}`}>
@@ -137,21 +145,21 @@ export default function StaffPage() {
 
           {/* Banners */}
           {isSunday && (
-            <div className="alert alert-err">
+            <div className="alert alert-warn">
               <span className="alert-icon">🛑</span>
-              <div><div className="alert-title">रविवार — साप्ताहिक अवकाश / Sunday Off</div><div>No attendance on Sundays.</div></div>
+              <div>
+                <div className="alert-title">रविवार — साप्ताहिक अवकाश / Sunday Off</div>
+                <div>No attendance on Sundays. Have a good rest!</div>
+              </div>
             </div>
           )}
           {!isSunday && !checkedIn && !checkedOut && !inWindow && (
-            <div className="alert alert-warn">
+            <div className="alert alert-info">
               <span className="alert-icon">⏰</span>
-              <div><div className="alert-title">Entry Window Closed</div><div>Check-in is only allowed <strong>6:00 AM – 8:01 AM</strong>.</div></div>
-            </div>
-          )}
-          {actionMsg && (
-            <div className={`alert ${actionMsg.type === 'ok' ? 'alert-ok' : 'alert-err'}`}>
-              <span className="alert-icon">{actionMsg.type === 'ok' ? '✅' : '❌'}</span>
-              <div>{actionMsg.text}</div>
+              <div>
+                <div className="alert-title">Entry Window Closed</div>
+                <div>Check-in is only allowed between <strong>6:00 AM – 8:00 AM</strong>.</div>
+              </div>
             </div>
           )}
           {checkedIn && !isSunday && (
@@ -168,7 +176,10 @@ export default function StaffPage() {
               disabled={!canCheckIn || btnLoading === 'in'}
               onClick={doCheckIn}
             >
-              {btnLoading === 'in' ? <span className="spinner spinner-sm" /> : <span className="action-icon">✅</span>}
+              {btnLoading === 'in'
+                ? <span className="spinner spinner-sm" />
+                : <span className="action-icon">🟢</span>
+              }
               <span className="action-label">Check In</span>
               <span className="action-sub">उपस्थिति दर्ज करें</span>
             </button>
@@ -177,33 +188,58 @@ export default function StaffPage() {
               disabled={!canCheckOut || btnLoading === 'out'}
               onClick={doCheckOut}
             >
-              {btnLoading === 'out' ? <span className="spinner spinner-sm" /> : <span className="action-icon">🔚</span>}
+              {btnLoading === 'out'
+                ? <span className="spinner spinner-sm" />
+                : <span className="action-icon">🔴</span>
+              }
               <span className="action-label">Check Out</span>
               <span className="action-sub">वापसी दर्ज करें</span>
             </button>
           </div>
 
           {/* Month stats */}
-          <div className="panel month-panel">
+          <div className="panel">
             <div className="panel-hdr">
-              <div className="panel-title"><span className="panel-icon">📊</span> इस माह का सारांश</div>
+              <div className="panel-title">
+                <span className="panel-icon">📊</span>
+                इस माह का सारांश
+              </div>
               <span className="panel-label">{monthLabel}</span>
             </div>
             <div className="month-stats">
-              <div className="stat-box"><div className="stat-val">{fullDays}</div><div className="stat-lbl">Full Days</div></div>
-              <div className="stat-box"><div className="stat-val">{shortDays}</div><div className="stat-lbl">Short Shifts</div></div>
-              <div className="stat-box"><div className="stat-val">{totalH.toFixed(1)}h</div><div className="stat-lbl">Total Hours</div></div>
-              <div className="stat-box stat-box-green"><div className="stat-val">{money(earned)}</div><div className="stat-lbl">Earned / अर्जित</div></div>
+              <div className="stat-box">
+                <div className="stat-val">{fullDays}</div>
+                <div className="stat-lbl">Full Days</div>
+              </div>
+              <div className="stat-box">
+                <div className="stat-val">{shortDays}</div>
+                <div className="stat-lbl">Short Shifts</div>
+              </div>
+              <div className="stat-box">
+                <div className="stat-val">{totalH.toFixed(1)}h</div>
+                <div className="stat-lbl">Total Hours</div>
+              </div>
+              <div className="stat-box stat-box-green">
+                <div className="stat-val">{money(earned)}</div>
+                <div className="stat-lbl">Earned / अर्जित</div>
+              </div>
             </div>
           </div>
 
-          {/* Timeline */}
-          <div className="panel timeline-panel">
+          {/* Attendance Timeline */}
+          <div className="panel">
             <div className="panel-hdr">
-              <div className="panel-title"><span className="panel-icon">📋</span> Attendance History</div>
+              <div className="panel-title">
+                <span className="panel-icon">📋</span>
+                Attendance History
+              </div>
+              <span className="panel-label">{monthRecs.length} records</span>
             </div>
             {monthRecs.length === 0 ? (
-              <div className="empty-state">इस माह कोई उपस्थिति नहीं</div>
+              <div className="empty-state">
+                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📭</div>
+                इस माह कोई उपस्थिति नहीं
+              </div>
             ) : (
               <div className="timeline">
                 {monthRecs.map(r => {
@@ -212,7 +248,9 @@ export default function StaffPage() {
                   const out = !!r.out_time;
                   return (
                     <div className="tl-item" key={r.id}>
-                      <div className={`tl-dot ${out && full ? 'tl-dot-ok' : out ? 'tl-dot-warn' : 'tl-dot-blue'}`}>📅</div>
+                      <div className={`tl-dot ${out && full ? 'tl-dot-ok' : out ? 'tl-dot-warn' : 'tl-dot-blue'}`}>
+                        {out && full ? '✅' : out ? '⚡' : '🔵'}
+                      </div>
                       <div className="tl-body">
                         <div className="tl-main">
                           {r.date}
@@ -232,6 +270,7 @@ export default function StaffPage() {
               </div>
             )}
           </div>
+
         </main>
       )}
     </div>

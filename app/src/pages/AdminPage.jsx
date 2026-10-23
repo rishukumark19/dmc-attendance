@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import Header from '../components/Header';
 import { useAuth } from '../context/AuthContext';
 import { supabase, makeTempClient } from '../lib/supabase';
@@ -46,17 +47,18 @@ function AddStaffModal({ onClose, onAdded, existingIds }) {
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-box">
         <h3>➕ Add New Staff / नया कर्मचारी</h3>
+        <div className="hint-box">💡 Staff can log in using their <strong>Employee ID</strong> and <strong>PIN</strong> on the main login page.</div>
         <div className="form-group">
           <label className="form-label">Full Name / पूरा नाम</label>
           <input className="form-input" placeholder="e.g. Ramesh Kumar" maxLength={80} value={name} onChange={e => setName(e.target.value)} />
         </div>
         <div className="form-group">
           <label className="form-label">Employee ID / कर्मचारी क्रमांक</label>
-          <input className="form-input" placeholder="e.g. EMP001" maxLength={20} value={empId} onChange={e => setEmpId(e.target.value)} />
+          <input className="form-input" placeholder="e.g. EMP001" maxLength={20} value={empId} onChange={e => setEmpId(e.target.value.toUpperCase())} />
         </div>
         <div className="form-group">
           <label className="form-label">Login PIN (4–8 digits) / लॉगिन पिन</label>
-          <input className="form-input" placeholder="e.g. 1234" maxLength={8} inputMode="numeric" value={pin} onChange={e => setPin(e.target.value)} />
+          <input className="form-input" placeholder="e.g. 1234" maxLength={8} inputMode="numeric" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g,''))} />
         </div>
         {msg && <div className={`modal-msg ${msg.type === 'ok' ? 'modal-msg-ok' : 'modal-msg-err'}`}>{msg.text}</div>}
         <div className="modal-footer">
@@ -211,21 +213,25 @@ export default function AdminPage() {
         {/* Stats row */}
         <div className="stats-grid">
           <div className="stat-card stat-navy">
+            <span className="sc-icon">👥</span>
             <div className="sc-lbl">Total Staff</div>
             <div className="sc-val">{allStaff.length}</div>
             <div className="sc-sub">Registered employees</div>
           </div>
           <div className="stat-card stat-green">
+            <span className="sc-icon">✅</span>
             <div className="sc-lbl">Today Present / आज</div>
             <div className="sc-val">{todayRecs.length}</div>
             <div className="sc-sub">{new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</div>
           </div>
           <div className="stat-card stat-saff">
+            <span className="sc-icon">⏱️</span>
             <div className="sc-lbl">Full Shifts (Month)</div>
             <div className="sc-val">{totalFull}</div>
             <div className="sc-sub">Completed 8h shifts</div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card stat-blue">
+            <span className="sc-icon">💰</span>
             <div className="sc-lbl">Salary Payable / वेतन</div>
             <div className="sc-val sc-val-sm">{money(totalPay)}</div>
             <div className="sc-sub">{salMonthLabel}</div>
