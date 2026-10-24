@@ -68,7 +68,14 @@ export default function StaffPage() {
     'Ward 45 (Saraidhela / सरायढेला)',
     'Ward 08 (Katras / कतरास)'
   ];
-  const [assignedWard, setAssignedWard] = useState(() => localStorage.getItem('dmc_assigned_ward') || WARDS[0]);
+  const [assignedWard, setAssignedWard] = useState(() => profile?.ward || localStorage.getItem('dmc_assigned_ward') || WARDS[0]);
+
+  // Sync ward from profile if profile loads after initial mount
+  useEffect(() => {
+    if (profile?.ward) {
+      setAssignedWard(profile.ward);
+    }
+  }, [profile?.ward]);
 
   const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   const dateStr = now.toLocaleDateString('hi-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -86,16 +93,28 @@ export default function StaffPage() {
   const loadData = useCallback(async () => {
     if (!profile) return;
     const uid = profile.user_id;
-    const [{ data: today }, { data: month }] = await Promise.all([
-      supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('date', todayIST()).maybeSingle(),
-      supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('month_key', monthIST()).order('in_time', { ascending: false }),
-    ]);
-    setTodayRec(today);
-    setMonthRecs(month || []);
-    setLoading(false);
+    try {
+      const [{ data: today, error: tErr }, { data: month, error: mErr }] = await Promise.all([
+        supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('date', todayIST()).order('created_at', { ascending: false }).limit(1),
+        supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('month_key', monthIST()).order('in_time', { ascending: false }),
+      ]);
+      if (tErr) console.warn('Today record fetch:', tErr);
+      if (mErr) console.warn('Month record fetch:', mErr);
+      setTodayRec(today && today.length > 0 ? today[0] : null);
+      setMonthRecs(month || []);
+    } catch (err) {
+      console.error('Error loading attendance data:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [profile]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Check for past unclosed shifts (missing check-out)
+  const unclosedShift = useMemo(() => {
+    return monthRecs.find(r => r.in_time && !r.out_time && r.date !== todayIST());
+  }, [monthRecs]);
 
   // Live timer for active shift
   const liveHoursWorked = useMemo(() => {
@@ -105,7 +124,7 @@ export default function StaffPage() {
     const currentMins = istNow.getHours() * 60 + istNow.getMinutes() + istNow.getSeconds() / 60;
     const elapsed = Math.max(0, (currentMins - startMins) / 60);
     return elapsed.toFixed(2);
-  }, [checkedIn, todayRec, now]);
+  }, [checkedIn, todayRec, istNow]);
 
   const statusPill = () => {
     if (isSunday) return { type: 'neutral', text: 'Sunday Holiday / अवकाश', sub: 'Weekly off' };
@@ -134,20 +153,39 @@ export default function StaffPage() {
     }));
   }, [completed]);
 
+  async function handleWardChange(newWard) {
+    setAssignedWard(newWard);
+    localStorage.setItem('dmc_assigned_ward', newWard);
+    if (profile?.user_id) {
+      await supabase.from('staff').update({ ward: newWard }).eq('user_id', profile.user_id);
+    }
+    toast.success(`Duty Ward updated to ${newWard}`);
+  }
+
   async function doCheckIn() {
     setBtnLoading('in');
-    const tId = toast.loading('Marking attendance...');
+    const tId = toast.loading('Marking attendance with DMC server...');
     try {
       const { data, error } = await supabase.rpc('do_check_in', {
-        p_emp_id: profile.emp_id, p_staff_name: profile.name,
+        p_emp_id: profile.emp_id,
+        p_staff_name: profile.name,
+        p_ward: assignedWard,
       });
-      if (error) throw error;
+      if (error) {
+        // If error indicates duplicate, reload existing record
+        if (error.message?.includes('already been recorded') || error.message?.includes('duplicate key')) {
+          await loadData();
+          toast.success('Attendance is already recorded for today!', { id: tId });
+          return;
+        }
+        throw error;
+      }
       setTodayRec(data);
       await loadData();
       triggerCelebration();
       toast.success('Check-in recorded successfully!', { id: tId });
     } catch (e) {
-      toast.error('Check-in failed: ' + e.message, { id: tId });
+      toast.error('Check-in failed: ' + (e.message || 'Server error'), { id: tId });
     } finally {
       setBtnLoading('');
     }
@@ -221,15 +259,32 @@ export default function StaffPage() {
                   <select
                     className="ward-select-input"
                     value={assignedWard}
-                    onChange={(e) => {
-                      setAssignedWard(e.target.value);
-                      localStorage.setItem('dmc_assigned_ward', e.target.value);
-                      toast.success(`Assigned Ward updated: ${e.target.value}`);
-                    }}
+                    onChange={(e) => handleWardChange(e.target.value)}
                   >
                     {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
                   </select>
                 </div>
+
+                {/* Unclosed Shift Warning Banner */}
+                {unclosedShift && (
+                  <div className="unclosed-shift-alert" style={{
+                    marginTop: '12px',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fef3c7',
+                    color: '#92400e',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <AlertCircle size={18} color="#d97706" />
+                    <div>
+                      <strong>Missing Checkout from {unclosedShift.date}:</strong> Shift has no exit punch. Please notify your Ward Supervisor or Admin to regularize.
+                    </div>
+                  </div>
+                )}
 
                 <div className="hero-center">
                   <div className="digital-clock font-mono">{timeStr}</div>
