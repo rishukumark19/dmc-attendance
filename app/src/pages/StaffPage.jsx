@@ -116,15 +116,22 @@ export default function StaffPage() {
     return monthRecs.find(r => r.in_time && !r.out_time && r.date !== todayIST());
   }, [monthRecs]);
 
-  // Live timer for active shift
+  // Live timer for active shift (handles ISO timestamptz and legacy HH:MM)
   const liveHoursWorked = useMemo(() => {
     if (!checkedIn || !todayRec?.in_time) return null;
-    const [h, m, s] = todayRec.in_time.split(':').map(Number);
-    const startMins = h * 60 + m + (s || 0) / 60;
-    const currentMins = istNow.getHours() * 60 + istNow.getMinutes() + istNow.getSeconds() / 60;
-    const elapsed = Math.max(0, (currentMins - startMins) / 60);
+    const inMs = new Date(todayRec.in_time).getTime();
+    if (isNaN(inMs)) {
+      const parts = String(todayRec.in_time).split(':').map(Number);
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        const startMins = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
+        const currentMins = istNow.getHours() * 60 + istNow.getMinutes() + istNow.getSeconds() / 60;
+        return Math.max(0, (currentMins - startMins) / 60).toFixed(2);
+      }
+      return null;
+    }
+    const elapsed = Math.max(0, (now.getTime() - inMs) / 3600000);
     return elapsed.toFixed(2);
-  }, [checkedIn, todayRec, istNow]);
+  }, [checkedIn, todayRec, now, istNow]);
 
   const statusPill = () => {
     if (isSunday) return { type: 'neutral', text: 'Sunday Holiday / अवकाश', sub: 'Weekly off' };
@@ -219,6 +226,28 @@ export default function StaffPage() {
             <div className="spinner" />
             <span className="page-loader-text">Loading Employee Portal...</span>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile && profile.active === false) {
+    return (
+      <div className="staff-layout">
+        <Header title="धनबाद नगर निगम" subtitle="Employee Self-Service Portal" />
+        <div style={{ maxWidth: 520, margin: '60px auto', padding: '32px 24px', textAlign: 'center', background: '#fff', borderRadius: 16, border: '1px solid #fee2e2', boxShadow: '0 10px 25px -5px rgba(220, 38, 38, 0.1)' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fef2f2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <AlertCircle size={28} />
+          </div>
+          <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#991b1b', marginBottom: 8 }}>
+            Account Inactive / खाता निष्क्रिय है
+          </h2>
+          <p style={{ color: '#64748b', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 12 }}>
+            Your municipal employee account (<strong>{profile.emp_id}</strong>) has been marked inactive by Dhanbad Municipal Corporation administration.
+          </p>
+          <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+            Attendance submission is disabled. Please contact your supervisor or ward nodal officer for assistance.
+          </p>
         </div>
       </div>
     );

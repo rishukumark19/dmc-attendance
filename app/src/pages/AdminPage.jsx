@@ -78,37 +78,46 @@ function RegularizeModal({ record, onClose, onSaved, isPeriodLocked = false }) {
       const baseDate = record.date;
       const newInISO = new Date(`${baseDate}T${inTime}:00+05:30`).toISOString();
       const newOutISO = new Date(`${baseDate}T${outTime}:00+05:30`).toISOString();
+      const corrType = isPeriodLocked 
+        ? 'LOCKED_PERIOD_OVERRIDE'
+        : !record.out_time ? 'MISSING_CHECKOUT_REGULARIZATION' : 'TIME_CORRECTION';
+      const fullReason = (isPeriodLocked ? '[POST-LOCK OVERRIDE] ' : '') + reason.trim();
 
-      // 1. Insert audit log into attendance_corrections
-      try {
-        await supabase.from('attendance_corrections').insert({
+      // 1. Try atomic RPC first (single transaction for audit log + attendance update)
+      const { error: rpcErr } = await supabase.rpc('regularize_attendance', {
+        p_attendance_id: record.id,
+        p_new_in_time: newInISO,
+        p_new_out_time: newOutISO,
+        p_reason: fullReason,
+        p_correction_type: corrType
+      });
+
+      if (rpcErr) {
+        // Fallback: If stored procedure is not yet applied, enforce strict 2-step with mandatory audit
+        console.warn('RPC regularize_attendance not available, using audited 2-step:', rpcErr);
+        const { error: auditErr } = await supabase.from('attendance_corrections').insert({
           attendance_id: record.id,
           staff_user_id: record.staff_user_id,
           emp_id: record.emp_id,
           staff_name: record.staff_name,
-          correction_type: isPeriodLocked 
-            ? 'LOCKED_PERIOD_OVERRIDE'
-            : !record.out_time ? 'MISSING_CHECKOUT_REGULARIZATION' : 'TIME_CORRECTION',
+          correction_type: corrType,
           old_in_time: record.in_time,
           old_out_time: record.out_time,
           new_in_time: newInISO,
           new_out_time: newOutISO,
-          reason: (isPeriodLocked ? '[POST-LOCK OVERRIDE] ' : '') + reason.trim(),
+          reason: fullReason,
           corrected_by: 'Admin'
         });
-      } catch (auditErr) {
-        console.warn('Audit table insert note:', auditErr);
+        if (auditErr) throw new Error('Mandatory audit logging failed: ' + auditErr.message);
+
+        const { error: updErr } = await supabase.from('attendance').update({
+          in_time: newInISO,
+          out_time: newOutISO,
+          is_corrected: true,
+          remarks: fullReason
+        }).eq('id', record.id);
+        if (updErr) throw updErr;
       }
-
-      // 2. Update attendance record
-      const { error: updErr } = await supabase.from('attendance').update({
-        in_time: newInISO,
-        out_time: newOutISO,
-        is_corrected: true,
-        remarks: reason.trim()
-      }).eq('id', record.id);
-
-      if (updErr) throw updErr;
 
       triggerCelebration();
       toast.success(`Attendance regularized for ${record.staff_name}`);
@@ -190,33 +199,38 @@ function RegularizeModal({ record, onClose, onSaved, isPeriodLocked = false }) {
 // Bulk Staff Import Modal (Module 10)
 // ──────────────────────────────────────────────
 function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
-  const [csvText, setCsvText] = useState(
-    "Ramesh Kumar,EMP101,1234,Ward 12 (Bank More / बैंक मोड़),Sanitation\n" +
-    "Sita Devi,EMP102,1234,Ward 24 (Hirapur / हीरापुर),Sanitation\n" +
-    "Amit Singh,EMP103,1234,Ward 31 (Steel Gate / स्टील गेट),Sanitation"
-  );
+  const [csvText, setCsvText] = useState('');
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(null);
+  const [importSummary, setImportSummary] = useState(null);
 
   const parsedRows = useMemo(() => {
     const lines = csvText.split('\n').map(l => l.trim()).filter(Boolean);
     const existingSet = new Set(existingIds.map(id => String(id).toUpperCase()));
+    const seenInFile = new Set();
+
     return lines.map((line, idx) => {
       const parts = line.split(',').map(p => p.trim());
       const name = parts[0] || '';
       const empId = (parts[1] || '').toUpperCase();
-      const pin = parts[2] || '1234';
+      const pin = parts[2] || '';
       const ward = parts[3] || WARDS[0];
       const dept = parts[4] || 'Sanitation';
 
       let status = 'valid';
       let error = '';
       if (!name || !empId) {
-        status = 'error'; error = 'Missing Name or ID';
+        status = 'error'; error = 'Missing Name or Employee ID';
+      } else if (!pin) {
+        status = 'error'; error = 'PIN is required';
+      } else if (pin.length < 4) {
+        status = 'error'; error = 'PIN must be at least 4 digits';
+      } else if (seenInFile.has(empId)) {
+        status = 'error'; error = 'Duplicate ID within file';
       } else if (existingSet.has(empId)) {
         status = 'error'; error = 'Duplicate ID in Database';
-      } else if (pin.length < 4) {
-        status = 'error'; error = 'PIN must be >= 4 digits';
+      } else {
+        seenInFile.add(empId);
       }
 
       return { rowNum: idx + 1, name, empId, pin, ward, dept, status, error };
@@ -225,6 +239,14 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
 
   const validRows = parsedRows.filter(r => r.status === 'valid');
 
+  function loadSampleData() {
+    setCsvText(
+      "Ramesh Kumar,EMP101,654321,Ward 12 (Bank More / बैंक मोड़),Sanitation\n" +
+      "Sita Devi,EMP102,789123,Ward 24 (Hirapur / हीरापुर),Sanitation\n" +
+      "Amit Singh,EMP103,456789,Ward 31 (Steel Gate / स्टील गेट),Sanitation"
+    );
+  }
+
   async function handleBulkImport() {
     if (validRows.length === 0) {
       toast.error('No valid rows found to import.');
@@ -232,6 +254,7 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
     }
     setLoading(true);
     let successCount = 0;
+    const results = [];
 
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
@@ -244,7 +267,7 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
         const uid = signUpData.user?.id;
         if (!uid) throw new Error('Auth creation failed');
 
-        await supabase.from('staff').insert({
+        const { error: insErr } = await supabase.from('staff').insert({
           user_id: uid,
           name: row.name,
           emp_id: row.empId,
@@ -253,16 +276,26 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
           department: row.dept,
           active: true
         });
+        if (insErr) throw insErr;
         successCount++;
+        results.push({ rowNum: row.rowNum, name: row.name, empId: row.empId, status: 'success', message: 'Registered' });
       } catch (err) {
         console.warn(`Failed to import ${row.name}:`, err);
+        results.push({ rowNum: row.rowNum, name: row.name, empId: row.empId, status: 'error', message: err.message || 'Import error' });
       }
     }
 
-    triggerCelebration();
-    toast.success(`Successfully imported ${successCount} municipal staff members!`);
-    onImported();
-    onClose();
+    setLoading(false);
+    setProgress(null);
+    setImportSummary({ successCount, total: validRows.length, results });
+
+    if (successCount > 0) {
+      triggerCelebration();
+      toast.success(`Successfully registered ${successCount} of ${validRows.length} workers!`);
+      onImported();
+    } else {
+      toast.error('Bulk registration failed. See details below.');
+    }
   }
 
   return (
@@ -282,63 +315,123 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
         </div>
 
         <div className="modal-body">
-          <textarea
-            className="csv-textarea"
-            placeholder="Name,EmployeeID,PIN,Ward,Department"
-            value={csvText}
-            onChange={e => setCsvText(e.target.value)}
-          />
+          {!importSummary ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.82rem', color: '#64748b' }}>Paste CSV lines below:</span>
+                <button
+                  type="button"
+                  onClick={loadSampleData}
+                  style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Load Sample Template
+                </button>
+              </div>
+              <textarea
+                className="csv-textarea"
+                placeholder="Ramesh Kumar,EMP101,654321,Ward 12 (Bank More / बैंक मोड़),Sanitation"
+                value={csvText}
+                onChange={e => setCsvText(e.target.value)}
+              />
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-              Total rows: <strong>{parsedRows.length}</strong> | Valid: <strong style={{ color: '#16a34a' }}>{validRows.length}</strong> | Issues: <strong style={{ color: '#dc2626' }}>{parsedRows.length - validRows.length}</strong>
-            </span>
-          </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  Total rows: <strong>{parsedRows.length}</strong> | Valid: <strong style={{ color: '#16a34a' }}>{validRows.length}</strong> | Issues: <strong style={{ color: '#dc2626' }}>{parsedRows.length - validRows.length}</strong>
+                </span>
+              </div>
 
-          <div className="preview-table-wrap">
-            <table className="modern-table" style={{ fontSize: '0.78rem' }}>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Name</th>
-                  <th>ID</th>
-                  <th>Ward</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {parsedRows.map(r => (
-                  <tr key={r.rowNum}>
-                    <td>{r.rowNum}</td>
-                    <td>{r.name}</td>
-                    <td className="font-mono">{r.empId}</td>
-                    <td>{r.ward}</td>
-                    <td>
-                      {r.status === 'valid' ? (
-                        <span className="status-badge badge-success">Valid</span>
-                      ) : (
-                        <span className="status-badge badge-neutral" style={{ color: '#dc2626' }}>{r.error}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              {parsedRows.length > 0 && (
+                <div className="preview-table-wrap">
+                  <table className="modern-table" style={{ fontSize: '0.78rem' }}>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>ID</th>
+                        <th>Ward</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedRows.map(r => (
+                        <tr key={r.rowNum}>
+                          <td>{r.rowNum}</td>
+                          <td>{r.name}</td>
+                          <td className="font-mono">{r.empId}</td>
+                          <td>{r.ward}</td>
+                          <td>
+                            {r.status === 'valid' ? (
+                              <span className="status-badge badge-success">Valid</span>
+                            ) : (
+                              <span className="status-badge badge-neutral" style={{ color: '#dc2626' }}>{r.error}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
-          {progress && (
-            <div style={{ marginTop: '10px', fontSize: '0.84rem', color: '#1d4ed8', fontWeight: 600 }}>
-              {progress}
+              {progress && (
+                <div style={{ marginTop: '10px', fontSize: '0.84rem', color: '#1d4ed8', fontWeight: 600 }}>
+                  {progress}
+                </div>
+              )}
+            </>
+          ) : (
+            <div>
+              <div style={{ padding: '16px', background: importSummary.successCount === importSummary.total ? '#f0fdf4' : '#fffbeb', borderRadius: 8, marginBottom: 16 }}>
+                <h4 style={{ margin: 0, color: importSummary.successCount === importSummary.total ? '#166534' : '#b45309', fontSize: '0.95rem' }}>
+                  Import Summary: {importSummary.successCount} of {importSummary.total} workers registered successfully
+                </h4>
+              </div>
+              <div className="preview-table-wrap">
+                <table className="modern-table" style={{ fontSize: '0.78rem' }}>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>ID</th>
+                      <th>Status</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importSummary.results.map((res, i) => (
+                      <tr key={i}>
+                        <td>{res.rowNum}</td>
+                        <td>{res.name}</td>
+                        <td className="font-mono">{res.empId}</td>
+                        <td>
+                          <span className={`status-badge ${res.status === 'success' ? 'badge-success' : 'badge-neutral'}`} style={res.status !== 'success' ? { color: '#dc2626' } : {}}>
+                            {res.status === 'success' ? 'Created' : 'Failed'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '0.75rem', color: res.status === 'success' ? '#166534' : '#dc2626' }}>
+                          {res.message}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-outline" onClick={onClose} disabled={loading}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleBulkImport} disabled={loading || validRows.length === 0}>
-            {loading ? <RefreshCw size={15} className="spin" /> : <Upload size={15} />}
-            <span>{loading ? 'Processing...' : `Confirm Import (${validRows.length} Workers)`}</span>
-          </button>
+          {!importSummary ? (
+            <>
+              <button className="btn btn-outline" onClick={onClose} disabled={loading}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleBulkImport} disabled={loading || validRows.length === 0}>
+                {loading ? <RefreshCw size={15} className="spin" /> : <Upload size={15} />}
+                <span>{loading ? 'Processing...' : `Confirm Import (${validRows.length} Workers)`}</span>
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-primary" onClick={onClose}>Done</button>
+          )}
         </div>
       </motion.div>
     </div>
@@ -363,27 +456,50 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
 
   const [name, setName] = useState('');
   const [empId, setEmpId] = useState(nextDefaultId);
-  const [pin, setPin] = useState('1234');
+  const [pin, setPin] = useState('');
   const [ward, setWard] = useState(WARDS[0]);
   const [dept, setDept] = useState('Sanitation');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  function generateSecurePin() {
+    const random = Math.floor(100000 + Math.random() * 900000).toString();
+    setPin(random);
+  }
+
   async function handleSave() {
     const n = name.trim(), id = empId.trim().toUpperCase(), p = pin.trim();
     if (!n || !id || !p) { setMsg({ type: 'err', text: 'Please fill all required fields.' }); return; }
     if (p.length < 4)   { setMsg({ type: 'err', text: 'PIN must be at least 4 digits.' }); return; }
-    if (existingIds.includes(id)) { setMsg({ type: 'err', text: 'Employee ID already exists!' }); return; }
+    if (existingIds.includes(id)) { setMsg({ type: 'err', text: 'Employee ID already exists in system!' }); return; }
 
     setLoading(true);
+    setMsg(null);
     try {
+      // 1. Verify that employee ID does not already exist in database
+      const { data: existingStaff, error: checkErr } = await supabase
+        .from('staff')
+        .select('id')
+        .ilike('emp_id', id)
+        .maybeSingle();
+
+      if (checkErr) console.warn('Pre-check error:', checkErr);
+      if (existingStaff) {
+        setMsg({ type: 'err', text: `Employee ID ${id} is already registered in the database.` });
+        setLoading(false);
+        return;
+      }
+
+      // 2. Create auth user with temporary client
       const email = `${id.toLowerCase()}@dmc.org`;
       const tmp = makeTempClient();
       const { data: signUpData, error: signUpErr } = await tmp.auth.signUp({ email, password: p });
       if (signUpErr) throw signUpErr;
       const newUid = signUpData.user?.id;
       if (!newUid) throw new Error('Could not create user account. Check Supabase Auth settings.');
+
+      // 3. Insert staff profile row
       const { error: dbErr } = await supabase.from('staff').insert({
         user_id: newUid,
         name: n,
@@ -395,11 +511,12 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
         active: true
       });
       if (dbErr) throw dbErr;
+
       triggerCelebration();
-      setMsg({ type: 'ok', text: `${n} registered successfully!` });
+      setMsg({ type: 'ok', text: `${n} registered successfully! PIN: ${p}` });
       setTimeout(() => { onAdded(); onClose(); }, 1400);
     } catch (e) {
-      setMsg({ type: 'err', text: e.message });
+      setMsg({ type: 'err', text: e.message || 'Registration failed' });
     } finally {
       setLoading(false);
     }
@@ -488,10 +605,19 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Login PIN (4–8 digits) / लॉगिन पिन *</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label className="form-label" style={{ margin: 0 }}>Login PIN (4–8 digits) / लॉगिन पिन *</label>
+              <button
+                type="button"
+                onClick={generateSecurePin}
+                style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Auto-generate PIN
+              </button>
+            </div>
             <input
               className="form-input font-mono"
-              placeholder="e.g. 1234"
+              placeholder="e.g. 6-digit PIN"
               maxLength={8}
               inputMode="numeric"
               value={pin}
@@ -557,13 +683,16 @@ export default function AdminPage() {
   const [staffSearch, setStaffSearch] = useState('');
   const [recSearch, setRecSearch] = useState('');
   const [recStatus, setRecStatus] = useState('');
+  const [showInactiveStaff, setShowInactiveStaff] = useState(false);
 
   const [lockedMonths, setLockedMonths] = useState(() => {
     try { return JSON.parse(localStorage.getItem('dmc_locked_months') || '[]'); } catch { return []; }
   });
 
+  // Load all workers (both active and inactive) so ID uniqueness and historical payroll work accurately
   const loadStaff = useCallback(async () => {
-    const { data } = await supabase.from('staff').select('*').eq('active', true).neq('role', 'admin').order('name');
+    const { data, error } = await supabase.from('staff').select('*').neq('role', 'admin').order('name');
+    if (error) console.error('Staff fetch error:', error);
     setAllStaff(data || []);
   }, []);
 
@@ -572,14 +701,51 @@ export default function AdminPage() {
     setTodayRecs(data || []);
   }, []);
 
+  // R3 FIX: Paginated chunk loading prevents 1000-row silent drop on busy months
   const loadSalary = useCallback(async (month) => {
-    const { data } = await supabase.from('attendance').select('*').eq('month_key', month);
-    setSalRecs(data || []);
+    let records = [];
+    let from = 0;
+    const chunkSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('month_key', month)
+        .range(from, from + chunkSize - 1);
+      if (error) {
+        console.error('Error fetching monthly salary attendance:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      records.push(...data);
+      if (data.length < chunkSize) break;
+      from += chunkSize;
+    }
+    setSalRecs(records);
   }, []);
 
+  // R3 FIX: Paginated chunk loading for historical records view
   const loadRecs = useCallback(async (month) => {
-    const { data } = await supabase.from('attendance').select('*').eq('month_key', month).order('in_time', { ascending: false });
-    setAllRecs(data || []);
+    let records = [];
+    let from = 0;
+    const chunkSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('month_key', month)
+        .order('in_time', { ascending: false })
+        .range(from, from + chunkSize - 1);
+      if (error) {
+        console.error('Error fetching records attendance:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      records.push(...data);
+      if (data.length < chunkSize) break;
+      from += chunkSize;
+    }
+    setAllRecs(records);
   }, []);
 
   const loadPeriodLocks = useCallback(async () => {
@@ -638,11 +804,13 @@ export default function AdminPage() {
   useEffect(() => { loadSalary(salMonth); }, [salMonth, loadSalary]);
   useEffect(() => { loadRecs(recMonth); }, [recMonth, loadRecs]);
 
-  async function removeStaff(id, name) {
-    if (!confirm(`Are you sure you want to deactivate ${name}? Their attendance logs will be preserved.`)) return;
-    const { error } = await supabase.from('staff').update({ active: false }).eq('id', id);
+  // Support both deactivating and reactivating worker profiles
+  async function toggleStaffStatus(id, name, currentActive) {
+    const action = currentActive ? 'deactivate' : 'reactivate';
+    if (!confirm(`Are you sure you want to ${action} ${name}? Historical attendance logs will be preserved.`)) return;
+    const { error } = await supabase.from('staff').update({ active: !currentActive }).eq('id', id);
     if (error) { toast.error('Error: ' + error.message); return; }
-    toast.success(`${name} deactivated`);
+    toast.success(`${name} ${action}d successfully`);
     await loadStaff();
   }
 
@@ -651,14 +819,20 @@ export default function AdminPage() {
     return allRecs.filter(r => isPastIncomplete(r));
   }, [allRecs]);
 
-  // ── Filtered staff (with Ward & Name/ID filter) ──
+  // ── Filtered staff for directory view (respects search, ward, and active filter) ──
   const filteredStaff = useMemo(() => {
     return allStaff.filter(s => {
       const matchSearch = !staffSearch || s.name?.toLowerCase().includes(staffSearch.toLowerCase()) || s.emp_id?.toLowerCase().includes(staffSearch.toLowerCase());
       const matchWard = selectedWard === 'All Wards' || (s.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard;
-      return matchSearch && matchWard;
+      const matchActive = showInactiveStaff ? true : (s.active !== false);
+      return matchSearch && matchWard && matchActive;
     });
-  }, [allStaff, staffSearch, selectedWard]);
+  }, [allStaff, staffSearch, selectedWard, showInactiveStaff]);
+
+  // ── Active staff only (used for today's expected attendance & attendance rate) ──
+  const activeStaff = useMemo(() => {
+    return allStaff.filter(s => s.active !== false && (selectedWard === 'All Wards' || (s.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard));
+  }, [allStaff, selectedWard]);
 
   // ── Filtered Today records ──
   const filteredTodayRecs = useMemo(() => {
@@ -683,9 +857,16 @@ export default function AdminPage() {
     });
   }, [allRecs, recSearch, recStatus, selectedWard]);
 
-  // ── Salary calculations ──
+  // ── R4 FIX: Salary calculations include active workers PLUS former workers who worked in this payroll month ──
   const salaryRows = useMemo(() => {
-    return filteredStaff.map(s => {
+    const eligibleStaff = allStaff.filter(s => {
+      const matchSearch = !staffSearch || s.name?.toLowerCase().includes(staffSearch.toLowerCase()) || s.emp_id?.toLowerCase().includes(staffSearch.toLowerCase());
+      const matchWard = selectedWard === 'All Wards' || (s.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard;
+      const hasAttendanceThisMonth = salRecs.some(r => r.staff_user_id === s.user_id && r.out_time);
+      return matchSearch && matchWard && (s.active || hasAttendanceThisMonth);
+    });
+
+    return eligibleStaff.map(s => {
       const recs = salRecs.filter(r => r.staff_user_id === s.user_id && r.out_time);
       const totalH = recs.reduce((a, r) => a + Math.min(8, hrs(r.in_time, r.out_time)), 0);
       const full = recs.filter(r => hrs(r.in_time, r.out_time) >= 8).length;
@@ -693,7 +874,7 @@ export default function AdminPage() {
       const total = recs.reduce((a, r) => a + pay(hrs(r.in_time, r.out_time)), 0);
       return { s, totalH, full, sht, total };
     });
-  }, [filteredStaff, salRecs]);
+  }, [allStaff, salRecs, staffSearch, selectedWard]);
 
   const salTotH   = salaryRows.reduce((a, r) => a + r.totalH, 0);
   const salTotF   = salaryRows.reduce((a, r) => a + r.full, 0);
@@ -706,12 +887,13 @@ export default function AdminPage() {
       ['Dhanbad Municipal Corporation (DMC) - Payroll Statement'],
       [`Month: ${salMonthLabel} (${salMonth})`, `Status: ${isSalLocked ? 'FINALIZED & LOCKED (Rule 15)' : 'DRAFT (OPEN)'}`, `Exported At: ${new Date().toLocaleString('en-IN')}`],
       [],
-      ['Employee ID', 'Name', 'Ward', 'Department', 'Full Days (₹450)', 'Short Shifts', 'Total Hours', 'Net Salary INR']
+      ['Employee ID', 'Name', 'Status', 'Ward', 'Department', 'Full Days (₹450)', 'Short Shifts', 'Total Hours', 'Net Salary INR']
     ];
     salaryRows.forEach(({ s, totalH, full, sht, total }) => {
       lines.push([
         sanitizeCSVCell(s.emp_id),
         sanitizeCSVCell(s.name),
+        s.active ? 'Active' : 'Inactive / Former',
         sanitizeCSVCell(s.ward || 'Ward 12'),
         sanitizeCSVCell(s.department || 'Sanitation'),
         full,
@@ -734,8 +916,8 @@ export default function AdminPage() {
   const totalPay  = salCompleted.reduce((a, r) => a + pay(hrs(r.in_time, r.out_time)), 0);
   const salMonthLabel = new Date(salMonth + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
-  const presentPercentage = filteredStaff.length > 0
-    ? Math.round((filteredTodayRecs.length / filteredStaff.length) * 100)
+  const presentPercentage = activeStaff.length > 0
+    ? Math.round((filteredTodayRecs.length / activeStaff.length) * 100)
     : 0;
 
   // ── Today's Unrecorded / Absent Status (Rule 10: Never confuse unrecorded with absent) ──
@@ -745,7 +927,7 @@ export default function AdminPage() {
   const inWindow = mins >= 360 && mins < 481; // 6:00 – 8:01 AM
 
   const presentUserIds = new Set(filteredTodayRecs.map(r => r.staff_user_id));
-  const unrecordedStaff = filteredStaff.filter(s => !presentUserIds.has(s.user_id));
+  const unrecordedStaff = activeStaff.filter(s => !presentUserIds.has(s.user_id));
 
   // ── Chart Trends Calculation ──
   const chartData = useMemo(() => {
@@ -961,7 +1143,7 @@ export default function AdminPage() {
 
                 {tab === 'salary' && (
                   <button className="btn btn-outline" onClick={downloadCSV}>
-                    <Download size={15} />
+                    <FileSpreadsheet size={15} />
                     <span>Export CSV</span>
                   </button>
                 )}
@@ -1068,16 +1250,26 @@ export default function AdminPage() {
                   <div className="panel-card-header">
                     <div>
                       <h3 className="panel-card-title">Staff Members</h3>
-                      <p className="panel-card-subtitle">Active municipal sanitation & field staff</p>
+                      <p className="panel-card-subtitle">Municipal sanitation & field staff management</p>
                     </div>
-                    <div className="panel-search-wrap">
-                      <Search size={15} className="search-icon" />
-                      <input
-                        className="panel-search-input"
-                        placeholder="Search employee name or ID..."
-                        value={staffSearch}
-                        onChange={e => setStaffSearch(e.target.value)}
-                      />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          checked={showInactiveStaff}
+                          onChange={e => setShowInactiveStaff(e.target.checked)}
+                        />
+                        <span>Show Inactive ({allStaff.filter(s => s.active === false).length})</span>
+                      </label>
+                      <div className="panel-search-wrap">
+                        <Search size={15} className="search-icon" />
+                        <input
+                          className="panel-search-input"
+                          placeholder="Search employee name or ID..."
+                          value={staffSearch}
+                          onChange={e => setStaffSearch(e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1087,7 +1279,7 @@ export default function AdminPage() {
                         <tr>
                           <th>Employee</th>
                           <th>ID / Code</th>
-                          <th>Today's Status</th>
+                          <th>Status</th>
                           <th className="text-right">Actions</th>
                         </tr>
                       </thead>
@@ -1104,13 +1296,17 @@ export default function AdminPage() {
                         ) : filteredStaff.map(s => {
                           const isPresent = todayRecs.some(r => r.staff_user_id === s.user_id);
                           return (
-                            <tr key={s.id}>
+                            <tr key={s.id} style={s.active === false ? { opacity: 0.75, backgroundColor: 'rgba(0,0,0,0.015)' } : {}}>
                               <td>
                                 <div className="user-cell">
-                                  <div className="user-avatar">{getInitials(s.name)}</div>
+                                  <div className="user-avatar" style={s.active === false ? { background: '#cbd5e1', color: '#475569' } : {}}>
+                                    {getInitials(s.name)}
+                                  </div>
                                   <div>
-                                    <div className="user-name">{s.name}</div>
-                                    <div className="user-meta">Sanitation Staff</div>
+                                    <div className="user-name">
+                                      {s.name} {s.active === false && <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600 }}>(Inactive)</span>}
+                                    </div>
+                                    <div className="user-meta">{s.department || 'Sanitation'} · {s.ward || 'Ward 12'}</div>
                                   </div>
                                 </div>
                               </td>
@@ -1118,7 +1314,11 @@ export default function AdminPage() {
                                 <span className="id-badge">{s.emp_id}</span>
                               </td>
                               <td>
-                                {isPresent ? (
+                                {s.active === false ? (
+                                  <span className="status-badge badge-neutral" style={{ color: '#dc2626', borderColor: '#fca5a5' }}>
+                                    Inactive
+                                  </span>
+                                ) : isPresent ? (
                                   <span className="status-badge badge-success">
                                     <span className="badge-dot" /> Present Today
                                   </span>
@@ -1129,14 +1329,26 @@ export default function AdminPage() {
                                 )}
                               </td>
                               <td className="text-right">
-                                <button
-                                  className="btn-icon-danger"
-                                  onClick={() => removeStaff(s.id, s.name)}
-                                  title={`Deactivate ${s.name}`}
-                                >
-                                  <Trash2 size={15} />
-                                  <span className="btn-icon-label">Deactivate</span>
-                                </button>
+                                {s.active === false ? (
+                                  <button
+                                    className="btn-icon-primary"
+                                    onClick={() => toggleStaffStatus(s.id, s.name, false)}
+                                    title={`Reactivate ${s.name}`}
+                                    style={{ color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
+                                  >
+                                    <CheckCircle2 size={14} />
+                                    <span className="btn-icon-label" style={{ color: '#16a34a' }}>Reactivate</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="btn-icon-danger"
+                                    onClick={() => toggleStaffStatus(s.id, s.name, true)}
+                                    title={`Deactivate ${s.name}`}
+                                  >
+                                    <Trash2 size={15} />
+                                    <span className="btn-icon-label">Deactivate</span>
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1477,7 +1689,9 @@ export default function AdminPage() {
                               <div className="user-cell">
                                 <div className="user-avatar">{getInitials(s.name)}</div>
                                 <div>
-                                  <div className="user-name">{s.name}</div>
+                                  <div className="user-name">
+                                    {s.name} {s.active === false && <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600 }}>(Inactive)</span>}
+                                  </div>
                                   <div className="user-meta">{s.department || 'Sanitation'}</div>
                                 </div>
                               </div>

@@ -23,7 +23,7 @@ import './LoginPage.css';
 
 export default function LoginPage() {
   const [role, setRole] = useState('staff');
-  const [staffId, setStaffId] = useState(() => localStorage.getItem('dmc_last_staff_id') || 'EMP001');
+  const [staffId, setStaffId] = useState(() => localStorage.getItem('dmc_last_staff_id') || '');
   const [staffPin, setStaffPin] = useState('');
   const [adminUser, setAdminUser] = useState(() => localStorage.getItem('dmc_last_admin_user') || 'admin');
   const [adminPass, setAdminPass] = useState('');

@@ -5,13 +5,16 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined); // undefined = loading
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(undefined); // undefined = loading, null = not found
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchProfile(session.user.id);
-      else setSession(null);
+      else {
+        setSession(null);
+        setProfile(null);
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -22,8 +25,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function fetchProfile(uid) {
-    const { data } = await supabase.from('staff').select('*').eq('user_id', uid).single();
-    setProfile(data);
+    try {
+      const { data, error } = await supabase.from('staff').select('*').eq('user_id', uid).maybeSingle();
+      if (error) console.error('Fetch profile error:', error);
+      setProfile(data || null);
+    } catch (e) {
+      console.error('Fetch profile exception:', e);
+      setProfile(null);
+    }
   }
 
   const logout = async () => {

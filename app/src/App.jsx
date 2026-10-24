@@ -7,9 +7,9 @@ import AdminPage  from './pages/AdminPage';
 import './index.css';
 
 function AppRoutes() {
-  const { session, profile } = useAuth();
+  const { session, profile, logout } = useAuth();
 
-  if (session === undefined) {
+  if (session === undefined || (session && profile === undefined)) {
     return (
       <div className="page-loader">
         <div className="page-loader-box">
@@ -22,12 +22,31 @@ function AppRoutes() {
 
   if (!session) return <LoginPage />;
 
-  if (!profile) {
+  if (session && profile === null) {
     return (
-      <div className="page-loader">
-        <div className="page-loader-box">
-          <div className="spinner" />
-          <span>Loading profile...</span>
+      <div className="page-loader" style={{ padding: 20 }}>
+        <div className="page-loader-box" style={{ maxWidth: 440, padding: 32, textAlign: 'center' }}>
+          <h3 style={{ fontSize: '1.2rem', color: '#991b1b', marginBottom: 8, fontWeight: 700 }}>
+            Profile Not Found / प्रोफाइल नहीं मिला
+          </h3>
+          <p style={{ fontSize: '0.875rem', color: '#64748b', lineHeight: 1.5, marginBottom: 20 }}>
+            This account ({session.user?.email || 'User'}) does not have an active municipal staff profile record.
+          </p>
+          <button
+            onClick={logout}
+            style={{
+              padding: '10px 22px',
+              backgroundColor: '#1d4ed8',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem'
+            }}
+          >
+            Logout / लॉग आउट करें
+          </button>
         </div>
       </div>
     );
