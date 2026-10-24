@@ -6,7 +6,7 @@ import AnimatedNumber from '../components/AnimatedNumber';
 import MagicCard from '../components/MagicCard';
 import AttendanceChart from '../components/AttendanceChart';
 import { supabase, makeTempClient } from '../lib/supabase';
-import { todayIST, hrs, pay, money, fmtT, getInitials, fillMonths, sanitizeCSVCell, isPastIncomplete } from '../lib/utils';
+import { todayIST, hrs, pay, money, fmtT, getInitials, fillMonths, sanitizeCSVCell, isPastIncomplete, getISTParts, parseCSVLine } from '../lib/utils';
 import { triggerCelebration, springPhysics } from '../lib/animations';
 import AnimatedCheckmark from '../components/AnimatedCheckmark';
 import {
@@ -58,21 +58,30 @@ const WARDS = [
 // ──────────────────────────────────────────────
 function RegularizeModal({ record, onClose, onSaved, isPeriodLocked = false }) {
   const [inTime, setInTime] = useState(() => {
-    if (!record?.in_time) return '06:30';
-    const d = new Date(record.in_time);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (!record?.in_time) return '';
+    const p = getISTParts(record.in_time);
+    return p ? `${p.hour}:${p.minute}` : '';
   });
   const [outTime, setOutTime] = useState(() => {
-    if (!record?.out_time) return '14:30';
-    const d = new Date(record.out_time);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (!record?.out_time) return '';
+    const p = getISTParts(record.out_time);
+    return p ? `${p.hour}:${p.minute}` : '';
   });
-  const [reason, setReason] = useState('Biometric / Punch machine network exception');
+  const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
   async function handleSave() {
-    if (!reason.trim()) { setErr('Correction reason is mandatory (Rule 8 audit requirement).'); return; }
+    if (!inTime) { setErr('Check-in time is required.'); return; }
+    if (!outTime) { setErr('Check-out time is required.'); return; }
+    if (outTime <= inTime) {
+      setErr('Check-out time must be strictly after check-in time.');
+      return;
+    }
+    if (!reason.trim()) {
+      setErr('Correction reason is mandatory for municipal audit compliance.');
+      return;
+    }
     setLoading(true); setErr('');
     try {
       const baseDate = record.date;
@@ -83,7 +92,7 @@ function RegularizeModal({ record, onClose, onSaved, isPeriodLocked = false }) {
         : !record.out_time ? 'MISSING_CHECKOUT_REGULARIZATION' : 'TIME_CORRECTION';
       const fullReason = (isPeriodLocked ? '[POST-LOCK OVERRIDE] ' : '') + reason.trim();
 
-      // 1. Try atomic RPC first (single transaction for audit log + attendance update)
+      // Atomic RPC call (single transaction for audit ledger + attendance update, no bypass)
       const { error: rpcErr } = await supabase.rpc('regularize_attendance', {
         p_attendance_id: record.id,
         p_new_in_time: newInISO,
@@ -92,32 +101,7 @@ function RegularizeModal({ record, onClose, onSaved, isPeriodLocked = false }) {
         p_correction_type: corrType
       });
 
-      if (rpcErr) {
-        // Fallback: If stored procedure is not yet applied, enforce strict 2-step with mandatory audit
-        console.warn('RPC regularize_attendance not available, using audited 2-step:', rpcErr);
-        const { error: auditErr } = await supabase.from('attendance_corrections').insert({
-          attendance_id: record.id,
-          staff_user_id: record.staff_user_id,
-          emp_id: record.emp_id,
-          staff_name: record.staff_name,
-          correction_type: corrType,
-          old_in_time: record.in_time,
-          old_out_time: record.out_time,
-          new_in_time: newInISO,
-          new_out_time: newOutISO,
-          reason: fullReason,
-          corrected_by: 'Admin'
-        });
-        if (auditErr) throw new Error('Mandatory audit logging failed: ' + auditErr.message);
-
-        const { error: updErr } = await supabase.from('attendance').update({
-          in_time: newInISO,
-          out_time: newOutISO,
-          is_corrected: true,
-          remarks: fullReason
-        }).eq('id', record.id);
-        if (updErr) throw updErr;
-      }
+      if (rpcErr) throw rpcErr;
 
       triggerCelebration();
       toast.success(`Attendance regularized for ${record.staff_name}`);
@@ -210,12 +194,17 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
     const seenInFile = new Set();
 
     return lines.map((line, idx) => {
-      const parts = line.split(',').map(p => p.trim());
+      const parts = parseCSVLine(line);
       const name = parts[0] || '';
       const empId = (parts[1] || '').toUpperCase();
       const pin = parts[2] || '';
       const ward = parts[3] || WARDS[0];
       const dept = parts[4] || 'Sanitation';
+
+      // Detect and skip CSV header row
+      if (idx === 0 && name.toLowerCase() === 'name' && (empId.includes('ID') || empId.includes('EMP'))) {
+        return { rowNum: idx + 1, name, empId, pin, ward, dept, status: 'skip', error: 'Header Row (Skipped)' };
+      }
 
       let status = 'valid';
       let error = '';
@@ -223,8 +212,8 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
         status = 'error'; error = 'Missing Name or Employee ID';
       } else if (!pin) {
         status = 'error'; error = 'PIN is required';
-      } else if (pin.length < 4) {
-        status = 'error'; error = 'PIN must be at least 4 digits';
+      } else if (pin.length < 6) {
+        status = 'error'; error = 'PIN must be at least 6 characters (Auth policy)';
       } else if (seenInFile.has(empId)) {
         status = 'error'; error = 'Duplicate ID within file';
       } else if (existingSet.has(empId)) {
@@ -260,12 +249,28 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
       const row = validRows[i];
       setProgress(`Registering ${i + 1} of ${validRows.length}: ${row.name}...`);
       try {
+        // 1. Verify ID doesn't already exist in database (race guard)
+        const { data: dbCheck, error: checkErr } = await supabase
+          .from('staff')
+          .select('id')
+          .ilike('emp_id', row.empId)
+          .maybeSingle();
+        if (checkErr) console.warn('Pre-check error:', checkErr);
+        if (dbCheck) {
+          throw new Error(`Employee ID ${row.empId} is already registered in database.`);
+        }
+
         const email = `${row.empId.toLowerCase()}@dmc.org`;
         const tmp = makeTempClient();
         const { data: signUpData, error: signErr } = await tmp.auth.signUp({ email, password: row.pin });
         if (signErr) throw signErr;
         const uid = signUpData.user?.id;
         if (!uid) throw new Error('Auth creation failed');
+
+        // Check if an auth account already existed with this email
+        if (signUpData.user?.identities && signUpData.user.identities.length === 0) {
+          throw new Error('An authentication account for this Employee ID already exists.');
+        }
 
         const { error: insErr } = await supabase.from('staff').insert({
           user_id: uid,
@@ -471,7 +476,7 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
   async function handleSave() {
     const n = name.trim(), id = empId.trim().toUpperCase(), p = pin.trim();
     if (!n || !id || !p) { setMsg({ type: 'err', text: 'Please fill all required fields.' }); return; }
-    if (p.length < 4)   { setMsg({ type: 'err', text: 'PIN must be at least 4 digits.' }); return; }
+    if (p.length < 6)   { setMsg({ type: 'err', text: 'PIN must be at least 6 characters (Authentication policy).' }); return; }
     if (existingIds.includes(id)) { setMsg({ type: 'err', text: 'Employee ID already exists in system!' }); return; }
 
     setLoading(true);
@@ -498,6 +503,11 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
       if (signUpErr) throw signUpErr;
       const newUid = signUpData.user?.id;
       if (!newUid) throw new Error('Could not create user account. Check Supabase Auth settings.');
+
+      // Check if user already existed in auth
+      if (signUpData.user?.identities && signUpData.user.identities.length === 0) {
+        throw new Error(`An authentication account for ${id} already exists in the system.`);
+      }
 
       // 3. Insert staff profile row
       const { error: dbErr } = await supabase.from('staff').insert({
@@ -669,7 +679,19 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [regularizeRec, setRegularizeRec] = useState(null);
+  const [regularizeRec, setRegularizeRec] = useState(() => {
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('test') === 'regularize') {
+      return {
+        id: 'test-att-1',
+        staff_name: 'Ramesh Kumar',
+        emp_id: 'EMP001',
+        date: '2026-10-24',
+        in_time: '2026-10-24T06:15:00+05:30',
+        out_time: null
+      };
+    }
+    return null;
+  });
   const [selectedWard, setSelectedWard] = useState('All Wards');
 
   const [allStaff, setAllStaff] = useState([]);
@@ -685,35 +707,56 @@ export default function AdminPage() {
   const [recStatus, setRecStatus] = useState('');
   const [showInactiveStaff, setShowInactiveStaff] = useState(false);
 
-  const [lockedMonths, setLockedMonths] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('dmc_locked_months') || '[]'); } catch { return []; }
-  });
+  const [lockedMonths, setLockedMonths] = useState([]);
+  const [salLoading, setSalLoading] = useState(false);
+  const [salError, setSalError] = useState(null);
+  const [recsLoading, setRecsLoading] = useState(false);
+  const [recsError, setRecsError] = useState(null);
 
   // Load all workers (both active and inactive) so ID uniqueness and historical payroll work accurately
   const loadStaff = useCallback(async () => {
     const { data, error } = await supabase.from('staff').select('*').neq('role', 'admin').order('name');
-    if (error) console.error('Staff fetch error:', error);
+    if (error) {
+      console.error('Staff fetch error:', error);
+      toast.error('Failed to load staff roster');
+      return;
+    }
     setAllStaff(data || []);
   }, []);
 
   const loadToday = useCallback(async () => {
-    const { data } = await supabase.from('attendance').select('*').eq('date', todayIST());
+    const { data, error } = await supabase.from('attendance').select('*').eq('date', todayIST());
+    if (error) {
+      console.error('Today attendance fetch error:', error);
+      toast.error('Failed to load today attendance records');
+      return;
+    }
     setTodayRecs(data || []);
   }, []);
 
-  // R3 FIX: Paginated chunk loading prevents 1000-row silent drop on busy months
+  // R3 FIX: Paginated chunk loading with deterministic ordering and error preservation
   const loadSalary = useCallback(async (month) => {
+    setSalLoading(true);
+    setSalError(null);
     let records = [];
     let from = 0;
     const chunkSize = 1000;
+    let queryFailed = false;
+
     while (true) {
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
         .eq('month_key', month)
+        .order('date', { ascending: true })
+        .order('id', { ascending: true })
         .range(from, from + chunkSize - 1);
+
       if (error) {
         console.error('Error fetching monthly salary attendance:', error);
+        setSalError(error.message || 'Database error loading salary records');
+        toast.error('Failed to load complete salary records from database');
+        queryFailed = true;
         break;
       }
       if (!data || data.length === 0) break;
@@ -721,23 +764,36 @@ export default function AdminPage() {
       if (data.length < chunkSize) break;
       from += chunkSize;
     }
-    setSalRecs(records);
+
+    if (!queryFailed) {
+      setSalRecs(records);
+    }
+    setSalLoading(false);
   }, []);
 
-  // R3 FIX: Paginated chunk loading for historical records view
+  // R3 FIX: Paginated chunk loading for historical records view with stable compound ordering
   const loadRecs = useCallback(async (month) => {
+    setRecsLoading(true);
+    setRecsError(null);
     let records = [];
     let from = 0;
     const chunkSize = 1000;
+    let queryFailed = false;
+
     while (true) {
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
         .eq('month_key', month)
         .order('in_time', { ascending: false })
+        .order('id', { ascending: false })
         .range(from, from + chunkSize - 1);
+
       if (error) {
         console.error('Error fetching records attendance:', error);
+        setRecsError(error.message || 'Database error loading attendance logs');
+        toast.error('Failed to load complete attendance records');
+        queryFailed = true;
         break;
       }
       if (!data || data.length === 0) break;
@@ -745,28 +801,37 @@ export default function AdminPage() {
       if (data.length < chunkSize) break;
       from += chunkSize;
     }
-    setAllRecs(records);
+
+    if (!queryFailed) {
+      setAllRecs(records);
+    }
+    setRecsLoading(false);
   }, []);
 
   const loadPeriodLocks = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('period_locks').select('month_key');
-      if (!error && data?.length) {
-        const keys = data.map(d => d.month_key);
-        setLockedMonths(keys);
-        localStorage.setItem('dmc_locked_months', JSON.stringify(keys));
+      if (error) {
+        console.error('Failed to load period locks from database:', error);
+        return;
       }
-    } catch {
-      // fallback to localStorage
+      const keys = (data || []).map(d => d.month_key);
+      setLockedMonths(keys);
+    } catch (e) {
+      console.error('Error fetching period locks:', e);
     }
   }, []);
 
   const loadCorrections = useCallback(async () => {
     try {
-      const { data } = await supabase.from('attendance_corrections').select('*').order('created_at', { ascending: false }).limit(50);
-      setCorrections(data || []);
+      const { data, error } = await supabase.from('attendance_corrections').select('*').order('created_at', { ascending: false }).limit(50);
+      if (error) {
+        console.warn('Corrections table fetch note:', error);
+      } else {
+        setCorrections(data || []);
+      }
     } catch (e) {
-      console.warn('Corrections table fetch note:', e);
+      console.warn('Corrections table fetch exception:', e);
     }
   }, []);
 
@@ -778,26 +843,30 @@ export default function AdminPage() {
     const isLocked = lockedMonths.includes(monthKey);
     if (isLocked) {
       if (!confirm(`Reopen month ${monthKey} for revisions? Attendance edits will resume being active.`)) return;
-      const next = lockedMonths.filter(m => m !== monthKey);
-      setLockedMonths(next);
-      localStorage.setItem('dmc_locked_months', JSON.stringify(next));
       try {
-        await supabase.from('period_locks').delete().eq('month_key', monthKey);
-      } catch {
-        // silently handled
+        const { error } = await supabase.from('period_locks').delete().eq('month_key', monthKey);
+        if (error) throw error;
+        setLockedMonths(prev => prev.filter(m => m !== monthKey));
+        toast.success(`Month ${monthKey} reopened for revisions.`);
+      } catch (err) {
+        console.error('Failed to reopen month in database:', err);
+        toast.error('Failed to reopen month: ' + (err.message || 'Database error'));
       }
-      toast.success(`Month ${monthKey} reopened for revisions.`);
     } else {
       if (!confirm(`Finalize and lock attendance for ${monthKey}? This freezes payroll records against accidental changes per DMC Rule 15.`)) return;
-      const next = [...new Set([...lockedMonths, monthKey])];
-      setLockedMonths(next);
-      localStorage.setItem('dmc_locked_months', JSON.stringify(next));
       try {
-        await supabase.from('period_locks').upsert({ month_key: monthKey, locked_by: 'Admin', locked_at: new Date().toISOString() });
-      } catch {
-        // silently handled
+        const { error } = await supabase.from('period_locks').upsert({
+          month_key: monthKey,
+          locked_by: 'Admin',
+          locked_at: new Date().toISOString()
+        });
+        if (error) throw error;
+        setLockedMonths(prev => [...new Set([...prev, monthKey])]);
+        toast.success(`Month ${monthKey} finalized and locked for payroll.`);
+      } catch (err) {
+        console.error('Failed to lock month in database:', err);
+        toast.error('Failed to lock month: ' + (err.message || 'Database error'));
       }
-      toast.success(`Month ${monthKey} finalized and locked for payroll.`);
     }
   }
 
@@ -862,12 +931,12 @@ export default function AdminPage() {
     const eligibleStaff = allStaff.filter(s => {
       const matchSearch = !staffSearch || s.name?.toLowerCase().includes(staffSearch.toLowerCase()) || s.emp_id?.toLowerCase().includes(staffSearch.toLowerCase());
       const matchWard = selectedWard === 'All Wards' || (s.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard;
-      const hasAttendanceThisMonth = salRecs.some(r => r.staff_user_id === s.user_id && r.out_time);
+      const hasAttendanceThisMonth = salRecs.some(r => r.staff_user_id === s.user_id || (r.emp_id && r.emp_id === s.emp_id));
       return matchSearch && matchWard && (s.active || hasAttendanceThisMonth);
     });
 
     return eligibleStaff.map(s => {
-      const recs = salRecs.filter(r => r.staff_user_id === s.user_id && r.out_time);
+      const recs = salRecs.filter(r => (r.staff_user_id === s.user_id || (r.emp_id && r.emp_id === s.emp_id)) && r.out_time);
       const totalH = recs.reduce((a, r) => a + Math.min(8, hrs(r.in_time, r.out_time)), 0);
       const full = recs.filter(r => hrs(r.in_time, r.out_time) >= 8).length;
       const sht  = recs.filter(r => hrs(r.in_time, r.out_time) < 8).length;
@@ -883,9 +952,13 @@ export default function AdminPage() {
   const isSalLocked = lockedMonths.includes(salMonth);
 
   function downloadCSV() {
+    if (salError) {
+      toast.error('Cannot export incomplete or failed payroll report. Please reload records.');
+      return;
+    }
     const lines = [
       ['Dhanbad Municipal Corporation (DMC) - Payroll Statement'],
-      [`Month: ${salMonthLabel} (${salMonth})`, `Status: ${isSalLocked ? 'FINALIZED & LOCKED (Rule 15)' : 'DRAFT (OPEN)'}`, `Exported At: ${new Date().toLocaleString('en-IN')}`],
+      [`Month: ${salMonthLabel} (${salMonth})`, `Status: ${isSalLocked ? 'FINALIZED & LOCKED (Rule 15)' : 'DRAFT (OPEN)'}`, `Exported At: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`],
       [],
       ['Employee ID', 'Name', 'Status', 'Ward', 'Department', 'Full Days (₹450)', 'Short Shifts', 'Total Hours', 'Net Salary INR']
     ];
@@ -902,7 +975,7 @@ export default function AdminPage() {
         total.toFixed(2)
       ]);
     });
-    const csv = '\ufeff' + lines.map(l => l.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const csv = '\ufeff' + lines.map(l => l.map(x => `"${sanitizeCSVCell(x).replace(/"/g, '""')}"`).join(',')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     a.download = `dmc-salary-${salMonth}-${isSalLocked ? 'finalized' : 'draft'}.csv`;
@@ -910,21 +983,23 @@ export default function AdminPage() {
     toast.success(`Sanitized Salary CSV exported (${isSalLocked ? 'Finalized' : 'Draft'})!`);
   }
 
-  // ── Stats Calculations ──
-  const salCompleted = salRecs.filter(r => r.out_time);
-  const totalFull = salCompleted.filter(r => hrs(r.in_time, r.out_time) >= 8).length;
-  const totalPay  = salCompleted.reduce((a, r) => a + pay(hrs(r.in_time, r.out_time)), 0);
-  const salMonthLabel = new Date(salMonth + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  // ── Stats Calculations: Reconciled with filtered payroll dataset ──
+  const totalFull = salTotF;
+  const totalPay  = salTotPay;
+  const salMonthLabel = new Date(salMonth + '-01T00:00:00+05:30').toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
   const presentPercentage = activeStaff.length > 0
     ? Math.round((filteredTodayRecs.length / activeStaff.length) * 100)
     : 0;
 
   // ── Today's Unrecorded / Absent Status (Rule 10: Never confuse unrecorded with absent) ──
-  const istNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  const isSunday = istNow.getDay() === 0;
-  const mins = istNow.getHours() * 60 + istNow.getMinutes();
-  const inWindow = mins >= 360 && mins < 481; // 6:00 – 8:01 AM
+  const istParts = getISTParts(new Date());
+  const istHour = istParts ? Number(istParts.hour) : 0;
+  const istMinute = istParts ? Number(istParts.minute) : 0;
+  const mins = istHour * 60 + istMinute;
+  const inWindow = mins >= 360 && mins <= 480; // 6:00 – 8:00 AM IST
+  const istDateObj = istParts ? new Date(`${istParts.year}-${istParts.month}-${istParts.day}T12:00:00+05:30`) : new Date();
+  const isSunday = istDateObj.getDay() === 0;
 
   const presentUserIds = new Set(filteredTodayRecs.map(r => r.staff_user_id));
   const unrecordedStaff = activeStaff.filter(s => !presentUserIds.has(s.user_id));
@@ -1122,7 +1197,7 @@ export default function AdminPage() {
                 </h2>
                 <p className="dashboard-subtitle">
                   {tab === 'staff' && 'Manage registered staff members and credentials'}
-                  {tab === 'today' && `Live status for ${new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`}
+                  {tab === 'today' && `Live status for ${new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`}
                   {tab === 'records' && 'Complete daily audit logs for check-ins and check-outs'}
                   {tab === 'salary' && `Calculated compensation for ${salMonthLabel}`}
                   {tab === 'exceptions' && 'Unclosed shifts, missing punches, and regularization audit records'}
@@ -1252,7 +1327,7 @@ export default function AdminPage() {
                       <h3 className="panel-card-title">Staff Members</h3>
                       <p className="panel-card-subtitle">Municipal sanitation & field staff management</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}>
                         <input
                           type="checkbox"
@@ -1369,7 +1444,7 @@ export default function AdminPage() {
                     </div>
                     <div className="date-chip">
                       <Calendar size={14} />
-                      <span>{new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                      <span>{new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' })}</span>
                     </div>
                   </div>
 
@@ -1504,6 +1579,7 @@ export default function AdminPage() {
                           <option key={m.value} value={m.value}>{m.label}</option>
                         ))}
                       </select>
+                      {recsLoading && <RefreshCw size={14} className="spin" style={{ color: '#1d4ed8' }} />}
                       <select
                         className="select-input"
                         value={recStatus}
@@ -1516,6 +1592,13 @@ export default function AdminPage() {
                       </select>
                     </div>
                   </div>
+
+                  {recsError && (
+                    <div className="hint-box" style={{ backgroundColor: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b', margin: '0 0 16px 0' }}>
+                      <AlertCircle size={15} />
+                      <span><strong>Data Retrieval Failure:</strong> {recsError}. Results are incomplete. Please refresh to reload.</span>
+                    </div>
+                  )}
 
                   <div className="table-responsive">
                     <table className="modern-table">
@@ -1537,8 +1620,17 @@ export default function AdminPage() {
                           <tr className="empty-row">
                             <td colSpan={9}>
                               <div className="empty-state">
-                                <ClipboardList size={32} className="empty-icon" />
-                                <p>No records found for the selected filter criteria.</p>
+                                {recsError ? (
+                                  <>
+                                    <AlertCircle size={32} className="empty-icon" style={{ color: '#dc2626' }} />
+                                    <p style={{ color: '#dc2626' }}>Failed to load attendance logs: {recsError}. Please refresh or try again.</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ClipboardList size={32} className="empty-icon" />
+                                    <p>No records found for the selected filter criteria.</p>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1618,6 +1710,7 @@ export default function AdminPage() {
                           <option key={m.value} value={m.value}>{m.label}</option>
                         ))}
                       </select>
+                      {salLoading && <RefreshCw size={14} className="spin" style={{ color: '#1d4ed8' }} />}
                       <button
                         className={`btn ${isSalLocked ? 'btn-outline' : 'btn-primary'}`}
                         onClick={() => toggleLockMonth(salMonth)}
@@ -1637,6 +1730,13 @@ export default function AdminPage() {
                     <div className="hint-box" style={{ backgroundColor: '#fff7ed', borderColor: '#fed7aa', color: '#c2410c', margin: '0 0 16px 0' }}>
                       <Lock size={15} />
                       <span><strong>Period Finalized (Rule 15):</strong> {salMonthLabel} attendance is officially locked for municipal payroll processing. Any manual modifications require administrative audit logging.</span>
+                    </div>
+                  )}
+
+                  {salError && (
+                    <div className="hint-box" style={{ backgroundColor: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b', margin: '0 0 16px 0' }}>
+                      <AlertCircle size={15} />
+                      <span><strong>Data Retrieval Failure:</strong> {salError}. Payroll results are incomplete. Please refresh to reload.</span>
                     </div>
                   )}
 
@@ -1678,8 +1778,17 @@ export default function AdminPage() {
                           <tr className="empty-row">
                             <td colSpan={7}>
                               <div className="empty-state">
-                                <IndianRupee size={32} className="empty-icon" />
-                                <p>No salary data found for {salMonthLabel}.</p>
+                                {salError ? (
+                                  <>
+                                    <AlertCircle size={32} className="empty-icon" style={{ color: '#dc2626' }} />
+                                    <p style={{ color: '#dc2626' }}>Failed to load payroll records: {salError}. Please refresh or try again.</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <IndianRupee size={32} className="empty-icon" />
+                                    <p>No salary data found for {salMonthLabel}.</p>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1818,7 +1927,7 @@ export default function AdminPage() {
                             {corrections.map(c => (
                               <tr key={c.id}>
                                 <td className="font-mono" style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                                  {new Date(c.created_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                                  {new Date(c.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })}
                                 </td>
                                 <td>
                                   <strong>{c.staff_name}</strong>

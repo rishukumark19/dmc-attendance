@@ -7,7 +7,7 @@ import MagicCard from '../components/MagicCard';
 import BorderBeam from '../components/BorderBeam';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { todayIST, monthIST, hrs, pay, money, fmtT, pad } from '../lib/utils';
+import { todayIST, monthIST, hrs, pay, money, fmtT, pad, getISTParts } from '../lib/utils';
 import { triggerCelebration, springPhysics } from '../lib/animations';
 import AnimatedCheckmark from '../components/AnimatedCheckmark';
 import {
@@ -61,29 +61,24 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [btnLoading, setBtnLoading] = useState('');
 
-  const WARDS = [
-    'Ward 12 (Bank More / बैंक मोड़)',
-    'Ward 24 (Hirapur / हीरापुर)',
-    'Ward 31 (Steel Gate / स्टील गेट)',
-    'Ward 45 (Saraidhela / सरायढेला)',
-    'Ward 08 (Katras / कतरास)'
-  ];
-  const [assignedWard, setAssignedWard] = useState(() => profile?.ward || localStorage.getItem('dmc_assigned_ward') || WARDS[0]);
+  const dutyWard = profile?.ward || 'Ward 12 (Bank More / बैंक मोड़)';
 
-  // Sync ward from profile if profile loads after initial mount
-  useEffect(() => {
-    if (profile?.ward) {
-      setAssignedWard(profile.ward);
-    }
-  }, [profile?.ward]);
+  const ist = getISTParts(now) || {
+    year: '2026', month: '01', day: '01', hour: '00', minute: '00', second: '00'
+  };
+  const timeStr = `${ist.hour}:${ist.minute}:${ist.second}`;
+  const dateStr = now.toLocaleDateString('hi-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 
-  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  const dateStr = now.toLocaleDateString('hi-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-  const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  const isSunday = istNow.getDay() === 0;
-  const mins = istNow.getHours() * 60 + istNow.getMinutes();
-  const inWindow = mins >= 360 && mins < 481; // 6:00 AM to 8:01 AM
+  const istDateObj = new Date(`${ist.year}-${ist.month}-${ist.day}T${ist.hour}:${ist.minute}:${ist.second}+05:30`);
+  const isSunday = istDateObj.getDay() === 0;
+  const mins = Number(ist.hour) * 60 + Number(ist.minute);
+  const inWindow = mins >= 360 && mins <= 480; // 6:00 AM to 8:00 AM IST
   const checkedOut = !!todayRec?.out_time;
   const checkedIn = !!todayRec && !checkedOut;
 
@@ -98,12 +93,29 @@ export default function StaffPage() {
         supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('date', todayIST()).order('created_at', { ascending: false }).limit(1),
         supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('month_key', monthIST()).order('in_time', { ascending: false }),
       ]);
-      if (tErr) console.warn('Today record fetch:', tErr);
-      if (mErr) console.warn('Month record fetch:', mErr);
-      setTodayRec(today && today.length > 0 ? today[0] : null);
-      setMonthRecs(month || []);
+      if (tErr) {
+        console.error('Today record fetch error:', tErr);
+        toast.error('Unable to fetch today attendance from server.');
+      } else {
+        let mockRec = null;
+        if (import.meta.env.DEV) {
+          const stateParam = new URLSearchParams(window.location.search).get('state');
+          if (stateParam === 'active') {
+            mockRec = { id: 'test-1', staff_user_id: uid, date: todayIST(), in_time: new Date(Date.now() - 4.5 * 3600000).toISOString(), out_time: null };
+          } else if (stateParam === 'checked_out') {
+            mockRec = { id: 'test-2', staff_user_id: uid, date: todayIST(), in_time: new Date(Date.now() - 8.5 * 3600000).toISOString(), out_time: new Date().toISOString() };
+          }
+        }
+        setTodayRec(mockRec || (today && today.length > 0 ? today[0] : null));
+      }
+      if (mErr) {
+        console.error('Month records fetch error:', mErr);
+      } else {
+        setMonthRecs(month || []);
+      }
     } catch (err) {
       console.error('Error loading attendance data:', err);
+      toast.error('Network error loading attendance data.');
     } finally {
       setLoading(false);
     }
@@ -124,14 +136,14 @@ export default function StaffPage() {
       const parts = String(todayRec.in_time).split(':').map(Number);
       if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
         const startMins = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
-        const currentMins = istNow.getHours() * 60 + istNow.getMinutes() + istNow.getSeconds() / 60;
+        const currentMins = Number(ist.hour) * 60 + Number(ist.minute) + Number(ist.second) / 60;
         return Math.max(0, (currentMins - startMins) / 60).toFixed(2);
       }
-      return null;
+      return '0.00';
     }
     const elapsed = Math.max(0, (now.getTime() - inMs) / 3600000);
     return elapsed.toFixed(2);
-  }, [checkedIn, todayRec, now, istNow]);
+  }, [checkedIn, todayRec, now, ist.hour, ist.minute, ist.second]);
 
   const statusPill = () => {
     if (isSunday) return { type: 'neutral', text: 'Sunday Holiday / अवकाश', sub: 'Weekly off' };
@@ -160,38 +172,31 @@ export default function StaffPage() {
     }));
   }, [completed]);
 
-  async function handleWardChange(newWard) {
-    setAssignedWard(newWard);
-    localStorage.setItem('dmc_assigned_ward', newWard);
-    if (profile?.user_id) {
-      await supabase.from('staff').update({ ward: newWard }).eq('user_id', profile.user_id);
-    }
-    toast.success(`Duty Ward updated to ${newWard}`);
-  }
-
   async function doCheckIn() {
+    if (btnLoading || todayRec) return;
     setBtnLoading('in');
     const tId = toast.loading('Marking attendance with DMC server...');
     try {
       const { data, error } = await supabase.rpc('do_check_in', {
         p_emp_id: profile.emp_id,
         p_staff_name: profile.name,
-        p_ward: assignedWard,
+        p_ward: dutyWard,
       });
       if (error) {
-        // If error indicates duplicate, reload existing record
-        if (error.message?.includes('already been recorded') || error.message?.includes('duplicate key')) {
+        if (error.message?.includes('already been recorded') || error.message?.includes('duplicate key') || error.message?.includes('unique')) {
           await loadData();
           toast.success('Attendance is already recorded for today!', { id: tId });
           return;
         }
         throw error;
       }
+      if (!data) throw new Error('No attendance record returned from server.');
       setTodayRec(data);
       await loadData();
       triggerCelebration();
       toast.success('Check-in recorded successfully!', { id: tId });
     } catch (e) {
+      console.error('Check-in failure:', e);
       toast.error('Check-in failed: ' + (e.message || 'Server error'), { id: tId });
     } finally {
       setBtnLoading('');
@@ -199,19 +204,21 @@ export default function StaffPage() {
   }
 
   async function doCheckOut() {
-    if (!todayRec) return;
+    if (btnLoading || !todayRec || todayRec.out_time) return;
     setBtnLoading('out');
     const tId = toast.loading('Recording checkout...');
     try {
       const { data, error } = await supabase.rpc('do_check_out', { p_id: todayRec.id });
       if (error) throw error;
+      if (!data) throw new Error('No checkout confirmation returned from server.');
       setTodayRec(data);
       await loadData();
       triggerCelebration();
       const h = hrs(data.in_time, data.out_time);
       toast.success(`${h.toFixed(2)}h shift saved · ${money(pay(h))} earned`, { id: tId });
     } catch (e) {
-      toast.error('Check-out failed: ' + e.message, { id: tId });
+      console.error('Check-out failure:', e);
+      toast.error('Check-out failed: ' + (e.message || 'Server error'), { id: tId });
     } finally {
       setBtnLoading('');
     }
@@ -282,16 +289,9 @@ export default function StaffPage() {
                   </div>
                 </div>
 
-                {/* 4. IKEA Effect: Assigned Ward Customization */}
                 <div className="ward-selector-row">
                   <span className="ward-selector-label">📍 Duty Ward:</span>
-                  <select
-                    className="ward-select-input"
-                    value={assignedWard}
-                    onChange={(e) => handleWardChange(e.target.value)}
-                  >
-                    {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
-                  </select>
+                  <span className="ward-assigned-val">{dutyWard}</span>
                 </div>
 
                 {/* Unclosed Shift Warning Banner */}
@@ -359,7 +359,7 @@ export default function StaffPage() {
                 )}
 
                 {/* 5. Loss Aversion: Alert when checking out before 8 hours */}
-                {checkedIn && Number(liveHoursWorked) < 8 && (
+                {checkedIn && Number(liveHoursWorked) > 0.05 && Number(liveHoursWorked) < 8 && (
                   <div className="loss-aversion-alert">
                     <AlertCircle size={16} className="loss-alert-icon" />
                     <div className="loss-alert-text">

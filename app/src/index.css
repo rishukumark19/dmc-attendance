@@ -44,13 +44,26 @@
   --shadow-xl: 0 24px 64px rgba(0,0,0,0.22);
 }
 
-html, body, #root {
+html {
   height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--g50);
   color: var(--g800);
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Scrollbar ── */

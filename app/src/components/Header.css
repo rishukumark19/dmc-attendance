@@ -58,12 +58,14 @@
 
 .hdr-text {
   min-width: 0;
+  overflow: hidden;
 }
 
 .hdr-brand-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .hdr-brand-row h1 {
@@ -89,6 +91,7 @@
   letter-spacing: 0.05em;
   padding: 2px 8px;
   border-radius: 9999px;
+  flex-shrink: 0;
 }
 
 .live-pulse {
@@ -111,6 +114,8 @@
   color: rgba(255, 255, 255, 0.65);
   margin-top: 1px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hdr-right {
@@ -202,14 +207,24 @@
 
 @media (max-width: 768px) {
   .hdr-inner {
-    padding: 8px 14px;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .hdr-left {
     gap: 10px;
+    min-width: 0;
+  }
+  .hdr-logo {
+    width: 36px;
+    height: 36px;
   }
   .hdr-brand-row h1 {
     font-size: 0.86rem;
   }
   .hdr-text p {
-    font-size: 0.66rem;
+    font-size: 0.65rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .hide-mobile {
     display: none !important;
@@ -219,5 +234,29 @@
   }
   .btn-logout {
     padding: 7px;
+    min-height: 36px;
+    min-width: 36px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 360px) {
+  .hdr-inner {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .hdr-left {
+    gap: 6px;
+  }
+  .hdr-logo {
+    width: 30px;
+    height: 30px;
+  }
+  .hdr-brand-row h1 {
+    font-size: 0.78rem;
+  }
+  .hdr-live-pill {
+    padding: 1px 5px;
+    font-size: 0.58rem;
   }
 }

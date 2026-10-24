@@ -36,8 +36,7 @@
 .signin-page-layout {
   min-height: 100vh;
   min-height: 100dvh;
-  width: 100vw;
-  width: 100dvw;
+  width: 100%;
   display: flex;
   background-color: #ffffff;
   overflow-x: hidden;
@@ -501,8 +500,35 @@
   }
   .signin-form-section {
     padding: 24px 18px;
+    min-height: 100dvh;
   }
   .signin-main-title {
     font-size: 1.85rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .signin-form-section {
+    padding: 20px 14px;
+  }
+  .signin-form-wrapper {
+    gap: 18px;
+  }
+  .signin-main-title {
+    font-size: 1.65rem;
+  }
+  .signin-options-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .signin-role-btn {
+    padding: 8px 10px;
+    font-size: 0.78rem;
+  }
+  .utility-banner-row {
+    flex-wrap: wrap;
+  }
+  .utility-badge-text {
+    font-size: 0.73rem;
   }
 }

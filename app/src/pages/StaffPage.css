@@ -39,6 +39,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .hero-badge-wrap {
@@ -96,6 +97,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   background-color: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -121,6 +123,17 @@
   outline: none;
   cursor: pointer;
   max-width: 220px;
+}
+
+.ward-assigned-val {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  display: inline-block;
 }
 
 .ward-select-input:focus {
@@ -222,6 +235,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
   padding: 12px 16px;
   background-color: #eff6ff;
   border: 1px solid #bfdbfe;
@@ -563,10 +578,53 @@
 }
 
 @media (max-width: 480px) {
+  .staff-main-container {
+    padding: 16px 12px 60px;
+  }
+  .staff-hero-card {
+    padding: 18px 14px;
+    gap: 14px;
+  }
+  .staff-panel-card {
+    padding: 16px 14px;
+  }
   .staff-metrics-grid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
   .digital-clock {
-    font-size: 2.4rem;
+    font-size: 2.3rem;
+  }
+  .hero-top-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ward-selector-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .live-shift-banner {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .btn-shift-primary,
+  .btn-shift-checkout {
+    padding: 14px 16px;
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 360px) {
+  .digital-clock {
+    font-size: 1.95rem;
+  }
+  .hero-badge-wrap {
+    gap: 5px;
+  }
+  .ward-assigned-val {
+    font-size: 0.72rem;
+  }
+  .history-left {
+    gap: 8px;
   }
 }
