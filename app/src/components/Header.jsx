@@ -60,7 +60,7 @@ export default function Header({ title, subtitle, onMenuToggle, showMenuBtn = fa
               <span className="hdr-user-role">{isAdmin ? 'Administrator' : 'Staff Member'}</span>
             </div>
           </div>
-          <button className="btn-logout" onClick={handleLogout} title="Log out">
+          <button id="btn-header-logout" className="btn-logout" onClick={handleLogout} title="Log out">
             <LogOut size={15} />
             <span className="hide-mobile">Logout</span>
           </button>

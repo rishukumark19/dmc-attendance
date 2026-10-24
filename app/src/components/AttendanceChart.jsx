@@ -12,14 +12,33 @@ import {
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
-      <div className="chart-tooltip">
-        <p className="chart-tooltip-label">{label}</p>
-        <div className="chart-tooltip-items">
+      <div
+        style={{
+          background: 'var(--neu-bg, #e9eef5)',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          boxShadow: 'var(--neu-flat, 6px 6px 14px rgba(164, 178, 198, 0.7), -6px -6px 14px rgba(255, 255, 255, 0.95))',
+          border: '1px solid rgba(255, 255, 255, 0.8)',
+          fontFamily: 'var(--font)',
+        }}
+      >
+        <p style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--mono-900, #0f172a)', marginBottom: 6 }}>
+          {label}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {payload.map((item, index) => (
-            <div key={index} className="chart-tooltip-item">
-              <span className="chart-tooltip-dot" style={{ backgroundColor: item.color }} />
-              <span className="chart-tooltip-name">{item.name}:</span>
-              <span className="chart-tooltip-val">
+            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.74rem' }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: item.color,
+                  boxShadow: `0 0 6px ${item.color}`,
+                }}
+              />
+              <span style={{ color: 'var(--mono-600, #475569)', fontWeight: 600 }}>{item.name}:</span>
+              <span style={{ fontWeight: 800, color: 'var(--mono-900, #0f172a)', fontFamily: 'var(--font-mono)' }}>
                 {item.name.toLowerCase().includes('hours') ? `${item.value}h` : item.value}
               </span>
             </div>
@@ -45,11 +64,11 @@ export default function AttendanceChart({ data, title = "Attendance Trends", sub
         </div>
         <div className="chart-legend-wrap">
           <div className="chart-legend-item">
-            <span className="chart-legend-color chart-legend-blue" />
+            <span className="chart-legend-color" style={{ backgroundColor: '#0f172a' }} />
             <span>Present Staff</span>
           </div>
           <div className="chart-legend-item">
-            <span className="chart-legend-color chart-legend-saff" />
+            <span className="chart-legend-color" style={{ backgroundColor: '#10b981', boxShadow: '0 0 8px rgba(16, 185, 129, 0.5)' }} />
             <span>Total Hours</span>
           </div>
         </div>
@@ -59,19 +78,19 @@ export default function AttendanceChart({ data, title = "Attendance Trends", sub
           <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#1e4a7a" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#1e4a7a" stopOpacity={0.0} />
+                <stop offset="5%" stopColor="#0f172a" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="#0f172a" stopOpacity={0.0} />
               </linearGradient>
               <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#e8761a" stopOpacity={0.35} />
-                <stop offset="95%" stopColor="#e8761a" stopOpacity={0.0} />
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(164, 178, 198, 0.4)" />
             <XAxis
               dataKey="date"
               tickLine={false}
-              axisLine={{ stroke: '#cbd5e1' }}
+              axisLine={{ stroke: 'rgba(164, 178, 198, 0.5)' }}
               tick={{ fill: '#64748b', fontSize: 11 }}
             />
             <YAxis
@@ -84,7 +103,7 @@ export default function AttendanceChart({ data, title = "Attendance Trends", sub
               type="monotone"
               dataKey="present"
               name="Present"
-              stroke="#1e4a7a"
+              stroke="#0f172a"
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#colorPresent)"
@@ -93,8 +112,8 @@ export default function AttendanceChart({ data, title = "Attendance Trends", sub
               type="monotone"
               dataKey="hours"
               name="Hours"
-              stroke="#e8761a"
-              strokeWidth={2}
+              stroke="#10b981"
+              strokeWidth={2.2}
               fillOpacity={1}
               fill="url(#colorHours)"
             />

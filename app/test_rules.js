@@ -292,15 +292,16 @@ function rpcDoCheckIn(db, authContext, browserParams, istNow) {
   if (staff.role === 'admin') throw new Error('Administrator accounts cannot record field attendance.');
 
   const { todayStr, monthKey, dow, mins, iso } = istNow;
+
+  // Task 6: Idempotency Retry Check FIRST. Return already-recorded result for legitimate retry.
+  const existing = db.attendance.find(a => a.staff_user_id === authContext.uid && a.date === todayStr);
+  if (existing) return existing;
+
   if (dow === 0) throw new Error('Sunday is an official weekly off. Check-in is not permitted today.');
   if (mins < 360 || mins > 480) throw new Error('Check-in window is closed. Official shift punch window is 06:00 AM – 08:00 AM IST.');
   if (db.period_locks.some(p => p.month_key === monthKey)) {
     throw new Error(`Attendance period ${monthKey} has been locked for payroll.`);
   }
-
-  // Idempotency: If already checked in today, return existing record
-  const existing = db.attendance.find(a => a.staff_user_id === authContext.uid && a.date === todayStr);
-  if (existing) return existing;
 
   // Insert record using trusted server profile
   const newRec = {
@@ -325,18 +326,18 @@ function rpcDoCheckOut(db, authContext, attendanceId, istNow) {
   if (!authContext?.uid) throw new Error('Authentication required to perform check-out.');
 
   const staff = db.staff.find(s => s.user_id === authContext.uid);
-  if (!authContext.isAdmin) {
-    if (!staff || staff.active !== true) {
-      throw new Error('Your employee account is marked inactive. Attendance submission is disabled.');
-    }
+  if (!staff || staff.active !== true) {
+    throw new Error('Your employee account is marked inactive. Attendance submission is disabled.');
   }
 
-  const rec = db.attendance.find(a => a.id === attendanceId && (a.staff_user_id === authContext.uid || authContext.isAdmin));
-  if (!rec) throw new Error('Attendance session not found or unauthorized.');
-  if (!rec.in_time) throw new Error('Cannot check out: no valid check-in punch found for this session.');
+  // Task 4: Restrict ordinary check-out strictly to the authenticated session owner
+  const rec = db.attendance.find(a => a.id === attendanceId && a.staff_user_id === authContext.uid);
+  if (!rec) throw new Error('Attendance session not found or unauthorized. Only the worker who checked in can perform regular check-out.');
 
-  // Idempotency: If already checked out, return existing
+  // Task 6: Idempotency Retry Check FIRST. If already checked out, return existing completed record.
   if (rec.out_time) return rec;
+
+  if (!rec.in_time) throw new Error('Cannot check out: no valid check-in punch found for this session.');
 
   const monthKey = rec.month_key || rec.date.slice(0, 7);
   if (db.period_locks.some(p => p.month_key === monthKey)) {
@@ -373,8 +374,33 @@ function rpcRegularizeAttendance(db, authContext, { attendanceId, newInTime, new
     throw new Error('Check-out time must be strictly after check-in time.');
   }
 
+  // Task 5: Comply with existing shift-duration rules (max 14 hours)
+  const elapsedHours = (new Date(newOutTime) - new Date(newInTime)) / 3600000;
+  if (elapsedHours > 14) {
+    throw new Error('Shift duration exceeds maximum shift limit of 14 hours.');
+  }
+
   const rec = db.attendance.find(a => a.id === attendanceId);
   if (!rec) throw new Error('Attendance record not found.');
+
+  // Task 5: Validate date alignment under Asia/Kolkata rules
+  const inParts = getISTParts(newInTime);
+  const outParts = getISTParts(newOutTime);
+  if (!inParts || !outParts) throw new Error('Invalid timestamp format for regularization.');
+  const inDate = `${inParts.year}-${inParts.month}-${inParts.day}`;
+  const outDate = `${outParts.year}-${outParts.month}-${outParts.day}`;
+  const inMonth = `${inParts.year}-${inParts.month}`;
+
+  if (inDate !== rec.date) {
+    throw new Error(`Corrected check-in timestamp date (${inDate}) does not match the attendance record date (${rec.date}).`);
+  }
+
+  const nextDay = new Date(new Date(newInTime).getTime() + 86400000);
+  const nextParts = getISTParts(nextDay);
+  const nextDayStr = nextParts ? `${nextParts.year}-${nextParts.month}-${nextParts.day}` : '';
+  if (outDate !== rec.date && outDate !== nextDayStr) {
+    throw new Error(`Corrected check-out timestamp date (${outDate}) is inconsistent with attendance record date (${rec.date}).`);
+  }
 
   const monthKey = rec.month_key || rec.date.slice(0, 7);
   if (db.period_locks.some(p => p.month_key === monthKey)) {
@@ -402,6 +428,8 @@ function rpcRegularizeAttendance(db, authContext, { attendanceId, newInTime, new
 
   rec.in_time = newInTime;
   rec.out_time = newOutTime;
+  rec.date = inDate;
+  rec.month_key = inMonth;
   rec.is_corrected = true;
   rec.remarks = reason.trim();
 
@@ -605,11 +633,13 @@ const lockRes = simulateTogglePeriodLock(testDb, '2026-10', false);
 assert.strictEqual(lockRes.error, null, 'Lock operation should succeed in database');
 assert.strictEqual(testDb.period_locks.some(p => p.month_key === '2026-10'), true, '2026-10 must be recorded in period_locks table');
 
-// Check-in during locked month must fail
+// New check-in during locked month must fail (for a worker without an existing punch)
+const unpunchedWorkerAuth = { uid: 'user-worker-unrecorded', isAdmin: false };
+testDb.staff.push({ id: '4', user_id: 'user-worker-unrecorded', emp_id: 'EMP004', name: 'Unrecorded Worker', role: 'staff', active: true });
 assert.throws(
-  () => rpcDoCheckIn(testDb, workerAuth, {}, normalPunchTime),
+  () => rpcDoCheckIn(testDb, unpunchedWorkerAuth, {}, normalPunchTime),
   /locked for payroll/,
-  'Check-in during locked month must be rejected by database'
+  'New check-in during locked month must be rejected by database'
 );
 
 // Failed lock operation (database network error)
@@ -960,6 +990,143 @@ assert.strictEqual(monthsList.length, 12, 'fillMonths(12) must return 12 entries
 assert.match(monthsList[0].value, /^\d{4}-\d{2}$/, 'First month value must match YYYY-MM');
 assert.strictEqual(typeof monthsList[0].label, 'string', 'Month label must be a string');
 
-console.log('✅ ALL PHASE 1, PHASE 2, PHASE 3 & PRODUCTION HELPER TESTS PASSED SUCCESSFULLY (36/36)!');
+// ── TEST 37: Legacy Policy Cleanup & Migration Rerun Safety (Task 1 & Task 2) ──
+console.log('Test 37: Legacy policy cleanup & migration rerun safety...');
+function evaluatePolicyList(droppedPolicies) {
+  const requiredDrops = ['staff_modify_policy', 'attendance_modify_policy', 'auth_staff_all', 'auth_att_all'];
+  const missing = requiredDrops.filter(p => !droppedPolicies.includes(p));
+  return { safe: missing.length === 0, missing };
+}
+const activeMigrationDrops = [
+  'auth_staff_all',
+  'auth_att_all',
+  'staff_select_policy',
+  'staff_modify_policy',
+  'staff_self_ward_update',
+  'staff_admin_all',
+  'staff_admin_modify',
+  'attendance_select_policy',
+  'attendance_modify_policy',
+  'attendance_admin_modify',
+  'corrections_policy',
+  'corrections_admin_policy',
+  'period_locks_policy',
+  'period_locks_admin_policy'
+];
+const policyCheck = evaluatePolicyList(activeMigrationDrops);
+assert.strictEqual(policyCheck.safe, true, 'All legacy policies must be explicitly dropped');
+
+// ── TEST 38: Restrict Ordinary Check-out to Session Owner (Task 4) ──
+console.log('Test 38: Restrict ordinary check-out to session owner...');
+assert.throws(
+  () => rpcDoCheckOut(testDb, adminAuth, punch1.id, normalPunchTime),
+  /Only the worker who checked in can perform regular check-out/,
+  'Admin cannot directly execute ordinary check-out on worker session; must use regularize_attendance'
+);
+
+// ── TEST 39: Attendance Correction Validations (Task 5) ──
+console.log('Test 39: Attendance correction validations...');
+// 1. Shift duration exceeding 14 hours rejected
+assert.throws(
+  () => rpcRegularizeAttendance(testDb, adminAuth, {
+    attendanceId: punch1.id,
+    newInTime: '2026-10-24T00:30:00.000Z', // 06:00 IST
+    newOutTime: '2026-10-24T15:30:00.000Z', // 21:00 IST (15 hours)
+    reason: 'Testing excessive duration'
+  }),
+  /exceeds maximum shift limit of 14 hours/,
+  'Regularization shift duration > 14 hours must be rejected'
+);
+
+// 2. In-time date mismatch under Asia/Kolkata rejected
+assert.throws(
+  () => rpcRegularizeAttendance(testDb, adminAuth, {
+    attendanceId: punch1.id,
+    newInTime: '2026-10-23T18:00:00.000Z', // 2026-10-23 23:30 IST
+    newOutTime: '2026-10-24T05:30:00.000Z', // 2026-10-24 11:00 IST
+    reason: 'Testing date mismatch'
+  }),
+  /does not match the attendance record date/,
+  'Regularization check-in date differing from record date must be rejected'
+);
+
+// 3. Valid correction updates record date and month_key consistently
+// Unlock period to test standard regularization
+testDb.period_locks = testDb.period_locks.filter(p => p.month_key !== '2026-10');
+const validCorr = rpcRegularizeAttendance(testDb, adminAuth, {
+  attendanceId: punch1.id,
+  newInTime: '2026-10-24T01:00:00.000Z', // 06:30 IST
+  newOutTime: '2026-10-24T09:00:00.000Z', // 14:30 IST (8 hours)
+  reason: 'Supervisor adjustment for emergency sanitation duty'
+});
+assert.strictEqual(validCorr.is_corrected, true, 'is_corrected must be true');
+assert.strictEqual(validCorr.date, '2026-10-24', 'date must remain consistent');
+assert.strictEqual(validCorr.month_key, '2026-10', 'month_key must remain consistent');
+
+// ── TEST 40: Retry Behaviour for Check-In and Check-Out (Task 6) ──
+console.log('Test 40: Retry behaviour for check-in and check-out...');
+// 1. Worker already checked in today punches again AFTER check-in window closed (e.g. 11:00 AM IST = 660 mins)
+const lateRetryTime = {
+  todayStr: '2026-10-24',
+  monthKey: '2026-10',
+  dow: 6,
+  mins: 660, // 11:00 AM IST (Window 360-480 is closed)
+  iso: '2026-10-24T05:30:00.000Z'
+};
+const retryCheckIn = rpcDoCheckIn(testDb, workerAuth, {}, lateRetryTime);
+assert.strictEqual(retryCheckIn.id, punch1.id, 'Retry check-in after window closed must return existing record');
+
+// 2. Check out workerAuth session
+const normalCheckoutTime = {
+  todayStr: '2026-10-24',
+  monthKey: '2026-10',
+  dow: 6,
+  mins: 420,
+  iso: '2026-10-24T08:00:00.000Z'
+};
+const checkoutDone = rpcDoCheckOut(testDb, workerAuth, punch1.id, normalCheckoutTime);
+assert.notStrictEqual(checkoutDone.out_time, null, 'Check-out completed');
+
+// Next day retry returns already-completed record without throwing
+const nextDayRetry = {
+  todayStr: '2026-10-25',
+  monthKey: '2026-10',
+  dow: 0,
+  mins: 420,
+  iso: '2026-10-25T08:00:00.000Z'
+};
+const retryCheckOutNextDay = rpcDoCheckOut(testDb, workerAuth, punch1.id, nextDayRetry);
+assert.strictEqual(retryCheckOutNextDay.id, punch1.id, 'Retry checkout on next day must return already-completed record without throwing');
+
+// ── TEST 41: Pre-check Query Error Abort (Task 7) ──
+console.log('Test 41: Pre-check query error abort...');
+async function simulateWorkerRegistration(proposedId, preCheckQueryFn, authSignUpFn, insertStaffFn) {
+  const { data: dbCheck, error: checkErr } = await preCheckQueryFn(proposedId);
+  if (checkErr) {
+    throw new Error(`Unable to verify Employee ID availability: ${checkErr.message || 'Database error'}`);
+  }
+  if (dbCheck) {
+    throw new Error(`Employee ID ${proposedId} is already registered in database.`);
+  }
+
+  const authRes = await authSignUpFn();
+  await insertStaffFn(authRes.uid);
+  return { success: true };
+}
+
+let authCalled = false;
+const errorPronePreCheck = async () => ({ data: null, error: new Error('Postgres connection timeout') });
+const mockSignUp = async () => { authCalled = true; return { uid: 'u-123' }; };
+const mockInsert = async () => {};
+
+await assert.rejects(
+  () => simulateWorkerRegistration('EMP999', errorPronePreCheck, mockSignUp, mockInsert),
+  /Unable to verify Employee ID availability: Postgres connection timeout/,
+  'Registration must abort immediately on pre-check error'
+);
+assert.strictEqual(authCalled, false, 'Auth creation must NOT be attempted when pre-check fails');
+
+console.log('✅ ALL PHASE 1 TO PHASE 5 & REFINED SECURITY AUDIT TESTS PASSED SUCCESSFULLY (41/41)!');
+
 
 

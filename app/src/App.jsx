@@ -14,7 +14,7 @@ function AppRoutes() {
       <div className="page-loader">
         <div className="page-loader-box">
           <div className="spinner" />
-          <span>Loading...</span>
+          <span>Loading portal... / पोर्टल लोड हो रहा है...</span>
         </div>
       </div>
     );
@@ -25,25 +25,17 @@ function AppRoutes() {
   if (session && profile === null) {
     return (
       <div className="page-loader" style={{ padding: 20 }}>
-        <div className="page-loader-box" style={{ maxWidth: 440, padding: 32, textAlign: 'center' }}>
-          <h3 style={{ fontSize: '1.2rem', color: '#991b1b', marginBottom: 8, fontWeight: 700 }}>
+        <div className="page-loader-box" style={{ maxWidth: 440, padding: 36, textAlign: 'center' }}>
+          <h3 style={{ fontSize: '1.2rem', color: 'var(--red-600, #dc2626)', marginBottom: 8, fontWeight: 800 }}>
             Profile Not Found / प्रोफाइल नहीं मिला
           </h3>
-          <p style={{ fontSize: '0.875rem', color: '#64748b', lineHeight: 1.5, marginBottom: 20 }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--mono-600, #475569)', lineHeight: 1.5, marginBottom: 24 }}>
             This account ({session.user?.email || 'User'}) does not have an active municipal staff profile record.
           </p>
           <button
             onClick={logout}
-            style={{
-              padding: '10px 22px',
-              backgroundColor: '#1d4ed8',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem'
-            }}
+            className="btn btn-primary"
+            style={{ padding: '12px 26px' }}
           >
             Logout / लॉग आउट करें
           </button>
@@ -61,24 +53,37 @@ export default function App() {
     <AuthProvider>
       <Toaster
         position="top-center"
-        gutter={10}
+        gutter={12}
         toastOptions={{
           duration: 3500,
           style: {
             fontFamily: "'Inter', system-ui, sans-serif",
             fontSize: '0.85rem',
-            fontWeight: '600',
-            borderRadius: '12px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
-            padding: '12px 18px',
+            fontWeight: '700',
+            borderRadius: '14px',
+            background: 'var(--neu-bg, #e9eef5)',
+            color: 'var(--mono-900, #0f172a)',
+            boxShadow: '6px 6px 16px rgba(164, 178, 198, 0.7), -6px -6px 16px rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(255, 255, 255, 0.8)',
+            padding: '12px 20px',
           },
           success: {
-            iconTheme: { primary: '#16a34a', secondary: '#fff' },
-            style: { background: '#f0fdf4', color: '#14532d', border: '1px solid #bbf7d0' },
+            iconTheme: { primary: '#10b981', secondary: '#ffffff' },
+            style: {
+              background: '#e9eef5',
+              color: '#047857',
+              border: '1px solid rgba(255, 255, 255, 0.9)',
+              boxShadow: '6px 6px 16px rgba(164, 178, 198, 0.7), -6px -6px 16px rgba(255, 255, 255, 0.95), 0 0 12px rgba(16, 185, 129, 0.25)',
+            },
           },
           error: {
-            iconTheme: { primary: '#dc2626', secondary: '#fff' },
-            style: { background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' },
+            iconTheme: { primary: '#ef4444', secondary: '#ffffff' },
+            style: {
+              background: '#e9eef5',
+              color: '#b91c1c',
+              border: '1px solid rgba(255, 255, 255, 0.9)',
+              boxShadow: '6px 6px 16px rgba(164, 178, 198, 0.7), -6px -6px 16px rgba(255, 255, 255, 0.95), 0 0 12px rgba(239, 68, 68, 0.25)',
+            },
           },
         }}
       />

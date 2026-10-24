@@ -1,0 +1,655 @@
+/* ══════════════════════════════════════════════════════════════════
+   DMC ATTENDANCE CALENDAR MAP & SHIFT MATRIX STYLES
+   High-density tactile neumorphic calendar view for DMC Staff Portal
+   ══════════════════════════════════════════════════════════════════ */
+
+.attendance-calendar-map-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+/* ── Snapshot Metric Banner ── */
+.cal-snapshot-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-inset-xs);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--neu-border-light);
+}
+
+.cal-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-flat-xs);
+  border: 1px solid var(--neu-border-light);
+  font-size: 0.76rem;
+  color: var(--mono-700);
+}
+
+.cal-stat-pill .pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-emerald { background-color: var(--emerald-500); }
+.dot-teal    { background-color: #0d9488; }
+.dot-amber   { background-color: var(--amber-500); }
+.dot-slate   { background-color: var(--mono-400); }
+
+.dot-pulse-active {
+  background-color: #8b5cf6;
+  box-shadow: 0 0 6px #8b5cf6;
+  animation: pulsePing 1.8s infinite;
+}
+
+.cal-stat-pill .pill-label {
+  font-weight: 600;
+  color: var(--mono-600);
+}
+
+.cal-stat-pill .pill-val {
+  font-weight: 800;
+  color: var(--mono-900);
+}
+
+/* ── 7-Column Weekday Header Row ── */
+.cal-weekdays-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+
+.cal-weekday-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-flat-xs);
+  border: 1px solid var(--neu-border-light);
+}
+
+.cal-weekday-col .weekday-hi {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--mono-800);
+  line-height: 1.1;
+}
+
+.cal-weekday-col .weekday-en {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--mono-400);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cal-weekday-col.col-sunday {
+  background: rgba(245, 158, 11, 0.05);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.cal-weekday-col.col-sunday .weekday-hi {
+  color: var(--amber-700);
+}
+
+/* ── 7-Column Calendar Grid Matrix ── */
+.cal-grid-matrix {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.cal-cell-empty {
+  min-height: 70px;
+  border-radius: var(--radius-md);
+  opacity: 0.25;
+}
+
+/* Base Day Cell */
+.cal-day-cell {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-flat-xs);
+  border: 1px solid var(--neu-border-light);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.cal-day-cell:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--neu-flat-sm);
+  border-color: var(--neu-border-dark);
+}
+
+.cal-day-cell:focus-visible {
+  outline: 2px solid var(--emerald-500);
+  outline-offset: 2px;
+}
+
+/* Day Cell Header */
+.day-cell-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.day-num {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--mono-800);
+}
+
+.today-micro-badge {
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background-color: var(--emerald-500);
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+/* Selected State */
+.cal-day-cell.cell-selected {
+  border: 2px solid #1e4a7a;
+  box-shadow: var(--neu-inset-sm), 0 0 12px rgba(30, 74, 122, 0.2);
+  transform: scale(1.02);
+  z-index: 2;
+}
+
+.cal-day-cell.cell-today {
+  border-color: var(--emerald-500);
+}
+
+/* State Variants */
+/* Full Shift (8h+) */
+.cal-day-cell.cell-full {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--neu-bg) 80%);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.cal-day-cell.cell-full .day-num {
+  color: var(--emerald-800);
+}
+
+/* Short Shift (<8h) */
+.cal-day-cell.cell-short {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, var(--neu-bg) 80%);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.cal-day-cell.cell-short .day-num {
+  color: var(--amber-800);
+}
+
+/* Active Today */
+.cal-day-cell.cell-active {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, var(--neu-bg) 80%);
+  border-color: #8b5cf6;
+}
+
+.cal-day-cell.cell-active .day-num {
+  color: #6d28d9;
+}
+
+/* Sunday */
+.cal-day-cell.cell-sunday {
+  background-color: rgba(241, 245, 249, 0.6);
+  opacity: 0.85;
+}
+
+.cal-day-cell.cell-sunday .day-num {
+  color: var(--mono-500);
+}
+
+/* Absent */
+.cal-day-cell.cell-absent {
+  background-color: rgba(244, 63, 94, 0.04);
+  border-color: rgba(244, 63, 94, 0.15);
+}
+
+.cal-day-cell.cell-absent .day-num {
+  color: var(--mono-400);
+}
+
+/* Upcoming Future Days */
+.cal-day-cell.cell-upcoming {
+  opacity: 0.45;
+  background-color: transparent;
+}
+
+/* Shift Micro Tags inside Cell */
+.day-cell-content {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  min-height: 22px;
+}
+
+.cell-shift-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  line-height: 1.1;
+}
+
+.tag-full {
+  background-color: rgba(16, 185, 129, 0.14);
+  color: var(--emerald-800);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.tag-full .shift-pay-micro {
+  font-size: 0.62rem;
+  opacity: 0.85;
+}
+
+.tag-short {
+  background-color: rgba(245, 158, 11, 0.16);
+  color: var(--amber-800);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.tag-active {
+  background-color: rgba(139, 92, 246, 0.16);
+  color: #6d28d9;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.active-dot-live {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #8b5cf6;
+  box-shadow: 0 0 5px #8b5cf6;
+  animation: pulsePing 1.5s infinite;
+}
+
+.tag-unclosed {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--red-700);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.tag-sunday {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: var(--mono-500);
+  font-size: 0.64rem;
+}
+
+.tag-absent {
+  color: var(--mono-400);
+  font-size: 0.68rem;
+}
+
+.tag-upcoming {
+  color: var(--mono-300);
+}
+
+/* ── Legend Bar ── */
+.cal-legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-inset-xs);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  color: var(--mono-600);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.legend-chip {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.chip-full   { background-color: var(--emerald-500); }
+.chip-short  { background-color: var(--amber-500); }
+.chip-active { background-color: #8b5cf6; }
+.chip-sunday { background-color: #94a3b8; }
+.chip-absent { background-color: #f43f5e; opacity: 0.5; }
+
+/* ── Day Shift Inspector Card ── */
+.cal-day-inspector-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-flat-sm);
+  border: 1px solid var(--neu-border-light);
+  margin-top: 4px;
+}
+
+.inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--neu-border-light);
+}
+
+.inspector-title-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inspector-day-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-inset-xs);
+  border: 1px solid var(--neu-border-light);
+  line-height: 1;
+}
+
+.avatar-day-num {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--mono-900);
+}
+
+.avatar-day-str {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--mono-500);
+  margin-top: 2px;
+}
+
+.inspector-date-hi {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--mono-900);
+  margin: 0;
+}
+
+.inspector-date-en {
+  font-size: 0.76rem;
+  color: var(--mono-500);
+  margin: 2px 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspector-today-tag {
+  font-size: 0.64rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--emerald-500);
+  color: #ffffff;
+}
+
+/* Inspector Badges */
+.inspector-status-badge-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.inspector-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.badge-full {
+  background-color: rgba(16, 185, 129, 0.14);
+  color: var(--emerald-800);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-short {
+  background-color: rgba(245, 158, 11, 0.16);
+  color: var(--amber-800);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-active {
+  background-color: rgba(139, 92, 246, 0.16);
+  color: #6d28d9;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  position: relative;
+}
+
+.pulse-ping-ring {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #8b5cf6;
+  box-shadow: 0 0 6px #8b5cf6;
+  animation: pulsePing 1.5s infinite;
+}
+
+.badge-unclosed {
+  background-color: rgba(239, 68, 68, 0.14);
+  color: var(--red-700);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-sunday {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: var(--amber-800);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.badge-absent {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: var(--mono-600);
+  border: 1px solid var(--mono-300);
+}
+
+.badge-upcoming {
+  background-color: var(--mono-100);
+  color: var(--mono-500);
+}
+
+/* Details Grid */
+.inspector-details-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.inspector-detail-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-inset-xs);
+  border: 1px solid var(--neu-border-light);
+}
+
+.inspector-detail-box .box-sub {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--mono-500);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.inspector-detail-box .box-val {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--mono-900);
+}
+
+.inspector-detail-box .box-hint {
+  font-size: 0.68rem;
+  color: var(--mono-500);
+}
+
+.progress-micro-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--mono-200);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-micro-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.inspector-empty-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-inset-xs);
+  font-size: 0.82rem;
+  color: var(--mono-600);
+}
+
+/* Inspector Footer Bar */
+.inspector-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  font-size: 0.74rem;
+  color: var(--mono-600);
+  border-top: 1px solid var(--neu-border-light);
+  flex-wrap: wrap;
+}
+
+.inspector-ward-badge,
+.inspector-verified-badge,
+.inspector-corrected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+}
+
+.inspector-ward-badge {
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-flat-xs);
+  font-weight: 600;
+}
+
+.inspector-verified-badge {
+  color: var(--emerald-700);
+  font-weight: 700;
+}
+
+.inspector-corrected-badge {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: var(--amber-800);
+  font-weight: 700;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* ── Responsive Adaptations ── */
+@media (max-width: 900px) {
+  .inspector-details-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .cal-weekdays-row,
+  .cal-grid-matrix {
+    gap: 4px;
+  }
+
+  .cal-day-cell {
+    min-height: 56px;
+    padding: 4px 3px;
+  }
+
+  .day-num {
+    font-size: 0.74rem;
+  }
+
+  .today-micro-badge {
+    font-size: 0.5rem;
+    padding: 0 2px;
+  }
+
+  .cell-shift-tag {
+    font-size: 0.58rem;
+    padding: 1px 3px;
+  }
+
+  .tag-full .shift-pay-micro,
+  .tag-short .shift-pay-micro {
+    display: none; /* Hide micro pay text on very narrow phones to avoid overflow */
+  }
+
+  .inspector-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inspector-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

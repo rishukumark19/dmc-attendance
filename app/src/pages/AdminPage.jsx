@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import Header from '../components/Header';
 import AnimatedNumber from '../components/AnimatedNumber';
 import MagicCard from '../components/MagicCard';
+import SpatialCard from '../components/SpatialCard';
 import AttendanceChart from '../components/AttendanceChart';
 import { supabase, makeTempClient } from '../lib/supabase';
 import { todayIST, hrs, pay, money, fmtT, getInitials, fillMonths, sanitizeCSVCell, isPastIncomplete, getISTParts, parseCSVLine } from '../lib/utils';
@@ -31,6 +32,10 @@ import {
   Edit3,
   Lock,
   Unlock,
+  KeyRound,
+  Copy,
+  Printer,
+  Check,
 } from '../components/Icons';
 import './AdminPage.css';
 
@@ -248,45 +253,45 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
       setProgress(`Registering ${i + 1} of ${validRows.length}: ${row.name}...`);
+      const rowPin = row.pin && row.pin.length >= 6 
+        ? row.pin 
+        : Math.floor(100000 + Math.random() * 900000).toString();
+
       try {
-        // 1. Verify ID doesn't already exist in database (race guard)
-        const { data: dbCheck, error: checkErr } = await supabase
-          .from('staff')
-          .select('id')
-          .ilike('emp_id', row.empId)
-          .maybeSingle();
-        if (checkErr) console.warn('Pre-check error:', checkErr);
-        if (dbCheck) {
-          throw new Error(`Employee ID ${row.empId} is already registered in database.`);
-        }
-
-        const email = `${row.empId.toLowerCase()}@dmc.org`;
-        const tmp = makeTempClient();
-        const { data: signUpData, error: signErr } = await tmp.auth.signUp({ email, password: row.pin });
-        if (signErr) throw signErr;
-        const uid = signUpData.user?.id;
-        if (!uid) throw new Error('Auth creation failed');
-
-        // Check if an auth account already existed with this email
-        if (signUpData.user?.identities && signUpData.user.identities.length === 0) {
-          throw new Error('An authentication account for this Employee ID already exists.');
-        }
-
-        const { error: insErr } = await supabase.from('staff').insert({
-          user_id: uid,
-          name: row.name,
-          emp_id: row.empId,
-          role: 'staff',
-          ward: row.ward,
-          department: row.dept,
-          active: true
+        const { data, error: rpcErr } = await supabase.rpc('admin_register_staff', {
+          p_emp_id: row.empId,
+          p_name: row.name,
+          p_pin: rowPin,
+          p_ward: row.ward,
+          p_department: row.dept,
+          p_designation: 'Sanitation Worker',
+          p_phone: null,
+          p_role: 'staff'
         });
-        if (insErr) throw insErr;
+        if (rpcErr) throw rpcErr;
         successCount++;
-        results.push({ rowNum: row.rowNum, name: row.name, empId: row.empId, status: 'success', message: 'Registered' });
+        results.push({
+          rowNum: row.rowNum,
+          name: row.name,
+          empId: row.empId,
+          pin: rowPin,
+          ward: row.ward,
+          dept: row.dept,
+          status: 'success',
+          message: 'Registered'
+        });
       } catch (err) {
         console.warn(`Failed to import ${row.name}:`, err);
-        results.push({ rowNum: row.rowNum, name: row.name, empId: row.empId, status: 'error', message: err.message || 'Import error' });
+        results.push({
+          rowNum: row.rowNum,
+          name: row.name,
+          empId: row.empId,
+          pin: rowPin,
+          ward: row.ward,
+          dept: row.dept,
+          status: 'error',
+          message: err.message || 'Import error'
+        });
       }
     }
 
@@ -301,6 +306,28 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
     } else {
       toast.error('Bulk registration failed. See details below.');
     }
+  }
+
+  function downloadCredentialsCSV(items) {
+    const lines = [
+      ['Employee ID', 'Name', 'Login PIN', 'Ward', 'Department', 'Date Registered']
+    ];
+    items.forEach(item => {
+      lines.push([
+        sanitizeCSVCell(item.empId),
+        sanitizeCSVCell(item.name),
+        item.pin,
+        sanitizeCSVCell(item.ward || 'Ward 12'),
+        sanitizeCSVCell(item.dept || 'Sanitation'),
+        new Date().toISOString().slice(0, 10)
+      ]);
+    });
+    const csv = '\ufeff' + lines.map(l => l.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `dmc-worker-credentials-${todayIST()}.csv`;
+    a.click();
+    toast.success('Worker credentials sheet downloaded');
   }
 
   return (
@@ -435,7 +462,17 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
               </button>
             </>
           ) : (
-            <button className="btn btn-primary" onClick={onClose}>Done</button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                className="btn btn-outline"
+                onClick={() => downloadCredentialsCSV(importSummary.results.filter(r => r.status === 'success'))}
+                disabled={importSummary.successCount === 0}
+              >
+                <FileSpreadsheet size={15} />
+                <span>Download Credentials Handout (.CSV)</span>
+              </button>
+              <button className="btn btn-primary" onClick={onClose}>Done</button>
+            </div>
           )}
         </div>
       </motion.div>
@@ -444,7 +481,7 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
 }
 
 // ──────────────────────────────────────────────
-// Add Staff Modal (Shadcn Dialog Style)
+// Add Staff Modal (Atomic Server Procedure + Credential Slip)
 // ──────────────────────────────────────────────
 function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
   const nextDefaultId = useMemo(() => {
@@ -464,9 +501,13 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
   const [pin, setPin] = useState('');
   const [ward, setWard] = useState(WARDS[0]);
   const [dept, setDept] = useState('Sanitation');
+  const [designation, setDesignation] = useState('Sanitation Worker');
   const [phone, setPhone] = useState('');
+  const [role, setRole] = useState('staff');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [createdCredential, setCreatedCredential] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   function generateSecurePin() {
     const random = Math.floor(100000 + Math.random() * 900000).toString();
@@ -476,60 +517,56 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
   async function handleSave() {
     const n = name.trim(), id = empId.trim().toUpperCase(), p = pin.trim();
     if (!n || !id || !p) { setMsg({ type: 'err', text: 'Please fill all required fields.' }); return; }
-    if (p.length < 6)   { setMsg({ type: 'err', text: 'PIN must be at least 6 characters (Authentication policy).' }); return; }
-    if (existingIds.includes(id)) { setMsg({ type: 'err', text: 'Employee ID already exists in system!' }); return; }
+    if (!/^\d{6}$/.test(p)) { setMsg({ type: 'err', text: 'PIN must be exactly 6 digits (e.g. 123456).' }); return; }
 
     setLoading(true);
     setMsg(null);
     try {
-      // 1. Verify that employee ID does not already exist in database
-      const { data: existingStaff, error: checkErr } = await supabase
-        .from('staff')
-        .select('id')
-        .ilike('emp_id', id)
-        .maybeSingle();
-
-      if (checkErr) console.warn('Pre-check error:', checkErr);
-      if (existingStaff) {
-        setMsg({ type: 'err', text: `Employee ID ${id} is already registered in the database.` });
-        setLoading(false);
-        return;
-      }
-
-      // 2. Create auth user with temporary client
-      const email = `${id.toLowerCase()}@dmc.org`;
-      const tmp = makeTempClient();
-      const { data: signUpData, error: signUpErr } = await tmp.auth.signUp({ email, password: p });
-      if (signUpErr) throw signUpErr;
-      const newUid = signUpData.user?.id;
-      if (!newUid) throw new Error('Could not create user account. Check Supabase Auth settings.');
-
-      // Check if user already existed in auth
-      if (signUpData.user?.identities && signUpData.user.identities.length === 0) {
-        throw new Error(`An authentication account for ${id} already exists in the system.`);
-      }
-
-      // 3. Insert staff profile row
-      const { error: dbErr } = await supabase.from('staff').insert({
-        user_id: newUid,
-        name: n,
-        emp_id: id,
-        role: 'staff',
-        ward,
-        department: dept,
-        phone: phone.trim() || null,
-        active: true
+      const { data, error: rpcErr } = await supabase.rpc('admin_register_staff', {
+        p_emp_id: id,
+        p_name: n,
+        p_pin: p,
+        p_ward: ward,
+        p_department: dept,
+        p_designation: designation.trim() || 'Sanitation Worker',
+        p_phone: phone.trim() || null,
+        p_role: role
       });
-      if (dbErr) throw dbErr;
+      if (rpcErr) throw rpcErr;
 
       triggerCelebration();
-      setMsg({ type: 'ok', text: `${n} registered successfully! PIN: ${p}` });
-      setTimeout(() => { onAdded(); onClose(); }, 1400);
+      setCreatedCredential({
+        name: n,
+        empId: id,
+        pin: p,
+        ward,
+        department: dept,
+        role
+      });
+      toast.success(`${n} (${id}) registered successfully!`);
+      onAdded();
     } catch (e) {
       setMsg({ type: 'err', text: e.message || 'Registration failed' });
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleCopyCreds() {
+    if (!createdCredential) return;
+    const text = `DMC Attendance Credentials\nEmployee: ${createdCredential.name} (${createdCredential.empId})\nLogin PIN: ${createdCredential.pin}\nWard: ${createdCredential.ward}\nDept: ${createdCredential.department}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success('Credentials copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleResetForNext() {
+    setName('');
+    setPin('');
+    setPhone('');
+    setCreatedCredential(null);
+    setMsg(null);
   }
 
   return (
@@ -556,9 +593,249 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
           </button>
         </div>
 
-        <div className="hint-box">
-          <Building2 size={16} className="hint-icon" />
-          <span>Staff will log in using their <strong>Employee ID</strong> and <strong>PIN</strong>.</span>
+        <div className="modal-body">
+          {!createdCredential ? (
+            <>
+              <div className="hint-box">
+                <Building2 size={16} className="hint-icon" />
+                <span>Staff will log in using their <strong>Employee ID</strong> and <strong>PIN</strong>.</span>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <label className="form-label">Full Name / पूरा नाम *</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. Ramesh Kumar"
+                  maxLength={80}
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Employee ID / कर्मचारी क्रमांक *</label>
+                <input
+                  className="form-input font-mono"
+                  placeholder="e.g. EMP001"
+                  maxLength={20}
+                  value={empId}
+                  onChange={e => setEmpId(e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Assigned Ward / आवंटित वार्ड</label>
+                <select className="form-input" value={ward} onChange={e => setWard(e.target.value)}>
+                  {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Department / विभाग</label>
+                <select className="form-input" value={dept} onChange={e => setDept(e.target.value)}>
+                  <option value="Sanitation">Sanitation / स्वच्छता विभाग</option>
+                  <option value="Waste Collection">Waste Collection / कचरा प्रबंधन</option>
+                  <option value="Road Maintenance">Road Maintenance / सड़क रखरखाव</option>
+                  <option value="Health">Health & Vector / स्वास्थ्य</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Designation / पद</label>
+                <input
+                  className="form-input"
+                  value={designation}
+                  onChange={e => setDesignation(e.target.value)}
+                  placeholder="e.g. Sanitation Worker"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Mobile Number (Optional) / मोबाइल नंबर</label>
+                <input
+                  className="form-input font-mono"
+                  placeholder="e.g. 9876543210"
+                  maxLength={10}
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">System Role / भूमिका</label>
+                <select className="form-input" value={role} onChange={e => setRole(e.target.value)}>
+                  <option value="staff">Staff Worker (Field Punching)</option>
+                  <option value="admin">Administrator / Supervisor</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label className="form-label" style={{ margin: 0 }}>Login PIN (6 digits) / 6-अंकीय लॉगिन पिन *</label>
+                  <button
+                    type="button"
+                    onClick={generateSecurePin}
+                    style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Auto-generate PIN
+                  </button>
+                </div>
+                <input
+                  className="form-input font-mono"
+                  placeholder="e.g. 123456"
+                  maxLength={6}
+                  inputMode="numeric"
+                  value={pin}
+                  onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+                />
+              </div>
+
+              {msg && (
+                <div className={`modal-msg ${msg.type === 'ok' ? 'modal-msg-ok' : 'modal-msg-err'}`}>
+                  {msg.type === 'ok' ? <AnimatedCheckmark size={20} color="#15803d" strokeWidth={2.5} /> : <X size={16} />}
+                  <span>{msg.text}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="credential-slip">
+              <div className="credential-slip-header">
+                <span className="credential-slip-title">Official Staff Credential Slip</span>
+                <span className="status-badge badge-success">✓ Active Registered</span>
+              </div>
+              <div className="credential-slip-grid">
+                <div className="credential-item">
+                  <span className="credential-label">Employee Name</span>
+                  <span className="credential-val">{createdCredential.name}</span>
+                </div>
+                <div className="credential-item">
+                  <span className="credential-label">Employee ID</span>
+                  <span className="credential-val font-mono">{createdCredential.empId}</span>
+                </div>
+                <div className="credential-item">
+                  <span className="credential-label">Ward</span>
+                  <span className="credential-val">{createdCredential.ward}</span>
+                </div>
+                <div className="credential-item">
+                  <span className="credential-label">Department</span>
+                  <span className="credential-val">{createdCredential.department}</span>
+                </div>
+              </div>
+              <div className="credential-item" style={{ marginTop: '8px' }}>
+                <span className="credential-label">Assigned Login PIN</span>
+                <div className="credential-pin-box">
+                  <span>{createdCredential.pin}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          {!createdCredential ? (
+            <>
+              <motion.button
+                className="btn btn-outline"
+                onClick={onClose}
+                disabled={loading}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                transition={springPhysics.snappy}
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                className="btn btn-primary"
+                onClick={handleSave}
+                disabled={loading}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                transition={springPhysics.snappy}
+              >
+                {loading ? <RefreshCw size={15} className="spin" /> : <Plus size={15} />}
+                <span>{loading ? 'Registering...' : 'Save Employee'}</span>
+              </motion.button>
+            </>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', justifyContent: 'flex-end' }}>
+              <button className="btn btn-outline" onClick={handleCopyCreds}>
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+                <span>{copied ? 'Copied!' : 'Copy Slip'}</span>
+              </button>
+              <button className="btn btn-outline" onClick={handleResetForNext}>
+                <Plus size={15} />
+                <span>Add Another</span>
+              </button>
+              <button className="btn btn-primary" onClick={onClose}>Done</button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Edit Staff Modal
+// ──────────────────────────────────────────────
+function EditStaffModal({ staff, onClose, onUpdated }) {
+  const [name, setName] = useState(staff.name || '');
+  const [ward, setWard] = useState(staff.ward || WARDS[0]);
+  const [dept, setDept] = useState(staff.department || 'Sanitation');
+  const [designation, setDesignation] = useState(staff.designation || 'Sanitation Worker');
+  const [phone, setPhone] = useState(staff.phone || '');
+  const [role, setRole] = useState(staff.role || 'staff');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function handleUpdate() {
+    if (!name.trim()) { setErr('Name cannot be empty.'); return; }
+    setLoading(true); setErr('');
+    try {
+      const { data, error } = await supabase.rpc('admin_update_staff', {
+        p_staff_id: staff.id,
+        p_name: name.trim(),
+        p_ward: ward,
+        p_department: dept,
+        p_designation: designation.trim() || 'Sanitation Worker',
+        p_phone: phone.trim() || null,
+        p_role: role
+      });
+      if (error) throw error;
+      toast.success(`Profile for ${name.trim()} updated successfully!`);
+      onUpdated();
+      onClose();
+    } catch (e) {
+      setErr(e.message || 'Update failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <motion.div
+        className="modal-box"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ duration: 0.25 }}
+      >
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <div className="modal-icon-badge">
+              <Edit3 size={18} />
+            </div>
+            <div>
+              <h3>Edit Staff Profile</h3>
+              <p className="modal-sub">{staff.name} ({staff.emp_id})</p>
+            </div>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>
+            <X size={18} />
+          </button>
         </div>
 
         <div className="modal-body">
@@ -566,22 +843,9 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
             <label className="form-label">Full Name / पूरा नाम *</label>
             <input
               className="form-input"
-              placeholder="e.g. Ramesh Kumar"
-              maxLength={80}
               value={name}
               onChange={e => setName(e.target.value)}
-              autoFocus
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Employee ID / कर्मचारी क्रमांक *</label>
-            <input
-              className="form-input font-mono"
-              placeholder="e.g. EMP001"
-              maxLength={20}
-              value={empId}
-              onChange={e => setEmpId(e.target.value.toUpperCase())}
+              maxLength={80}
             />
           </div>
 
@@ -603,68 +867,210 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Mobile Number (Optional) / मोबाइल नंबर</label>
+            <label className="form-label">Designation / पद</label>
             <input
-              className="form-input font-mono"
-              placeholder="e.g. 9876543210"
-              maxLength={10}
-              inputMode="numeric"
-              value={phone}
-              onChange={e => setPhone(e.target.value.replace(/\D/g,''))}
+              className="form-input"
+              value={designation}
+              onChange={e => setDesignation(e.target.value)}
+              placeholder="e.g. Sanitation Worker"
             />
           </div>
 
           <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <label className="form-label" style={{ margin: 0 }}>Login PIN (4–8 digits) / लॉगिन पिन *</label>
-              <button
-                type="button"
-                onClick={generateSecurePin}
-                style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Auto-generate PIN
-              </button>
-            </div>
+            <label className="form-label">Mobile Number / मोबाइल नंबर</label>
             <input
               className="form-input font-mono"
-              placeholder="e.g. 6-digit PIN"
-              maxLength={8}
-              inputMode="numeric"
-              value={pin}
-              onChange={e => setPin(e.target.value.replace(/\D/g,''))}
+              value={phone}
+              onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+              maxLength={10}
+              placeholder="e.g. 9876543210"
             />
           </div>
 
-          {msg && (
-            <div className={`modal-msg ${msg.type === 'ok' ? 'modal-msg-ok' : 'modal-msg-err'}`}>
-              {msg.type === 'ok' ? <AnimatedCheckmark size={20} color="#15803d" strokeWidth={2.5} /> : <X size={16} />}
-              <span>{msg.text}</span>
+          <div className="form-group">
+            <label className="form-label">System Role / भूमिका</label>
+            <select className="form-input" value={role} onChange={e => setRole(e.target.value)}>
+              <option value="staff">Staff Worker (Field Punching)</option>
+              <option value="admin">Administrator / Supervisor</option>
+            </select>
+          </div>
+
+          {err && (
+            <div className="modal-msg modal-msg-err">
+              <AlertCircle size={16} />
+              <span>{err}</span>
             </div>
           )}
         </div>
 
         <div className="modal-footer">
-          <motion.button
-            className="btn btn-outline"
-            onClick={onClose}
-            disabled={loading}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.96 }}
-            transition={springPhysics.snappy}
-          >
-            Cancel
-          </motion.button>
-          <motion.button
-            className="btn btn-primary"
-            onClick={handleSave}
-            disabled={loading}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.96 }}
-            transition={springPhysics.snappy}
-          >
-            {loading ? <RefreshCw size={15} className="spin" /> : <Plus size={15} />}
-            <span>{loading ? 'Registering...' : 'Save Employee'}</span>
-          </motion.button>
+          <button className="btn btn-outline" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleUpdate} disabled={loading}>
+            {loading ? <RefreshCw size={15} className="spin" /> : <CheckCircle2 size={15} />}
+            <span>{loading ? 'Saving...' : 'Save Changes'}</span>
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Reset PIN Modal
+// ──────────────────────────────────────────────
+function ResetPinModal({ staff, onClose, onReset }) {
+  const [newPin, setNewPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [err, setErr] = useState('');
+
+  function generatePin() {
+    const random = Math.floor(100000 + Math.random() * 900000).toString();
+    setNewPin(random);
+  }
+
+  async function handleReset() {
+    const p = newPin.trim();
+    if (!/^\d{6}$/.test(p)) {
+      setErr('PIN must be exactly 6 numeric digits.');
+      return;
+    }
+    setLoading(true); setErr('');
+    try {
+      const { data, error } = await supabase.rpc('admin_reset_staff_pin', {
+        p_staff_id: staff.id,
+        p_new_pin: p
+      });
+      if (error) throw error;
+      setResult({
+        name: staff.name,
+        empId: staff.emp_id,
+        pin: p
+      });
+      toast.success(`PIN reset successfully for ${staff.name}`);
+      if (onReset) onReset();
+    } catch (e) {
+      setErr(e.message || 'Failed to reset PIN');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copyCreds() {
+    if (!result) return;
+    const text = `DMC Attendance Credentials\nStaff: ${result.name} (${result.empId})\nNew Login PIN: ${result.pin}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success('Credentials copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <motion.div
+        className="modal-box"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ duration: 0.25 }}
+      >
+        <div className="modal-header">
+          <div className="modal-title-row">
+            <div className="modal-icon-badge" style={{ backgroundColor: '#fef3c7', color: '#d97706' }}>
+              <KeyRound size={18} />
+            </div>
+            <div>
+              <h3>Reset Worker PIN</h3>
+              <p className="modal-sub">लॉगिन पिन रीसेट करें</p>
+            </div>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="modal-body">
+          {!result ? (
+            <>
+              <div className="hint-box">
+                <AlertCircle size={16} className="hint-icon" />
+                <span>Resetting login PIN for <strong>{staff.name}</strong> ({staff.emp_id}). Existing PIN will immediately be replaced.</span>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label className="form-label" style={{ margin: 0 }}>New 6-Digit PIN / नया 6-अंकीय पिन *</label>
+                  <button
+                    type="button"
+                    onClick={generatePin}
+                    style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Auto-generate PIN
+                  </button>
+                </div>
+                <input
+                  className="form-input font-mono"
+                  placeholder="e.g. 654321"
+                  maxLength={6}
+                  inputMode="numeric"
+                  value={newPin}
+                  onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+                  autoFocus
+                />
+              </div>
+
+              {err && (
+                <div className="modal-msg modal-msg-err">
+                  <AlertCircle size={16} />
+                  <span>{err}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="credential-slip">
+              <div className="credential-slip-header">
+                <span className="credential-slip-title">Updated Credentials Handout</span>
+                <span className="status-badge badge-success">✓ Active</span>
+              </div>
+              <div className="credential-slip-grid">
+                <div className="credential-item">
+                  <span className="credential-label">Employee</span>
+                  <span className="credential-val">{result.name}</span>
+                </div>
+                <div className="credential-item">
+                  <span className="credential-label">Employee ID</span>
+                  <span className="credential-val font-mono">{result.empId}</span>
+                </div>
+              </div>
+              <div className="credential-item" style={{ marginTop: '6px' }}>
+                <span className="credential-label">New Login PIN</span>
+                <div className="credential-pin-box">
+                  <span>{result.pin}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          {!result ? (
+            <>
+              <button className="btn btn-outline" onClick={onClose} disabled={loading}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleReset} disabled={loading || newPin.length < 6}>
+                {loading ? <RefreshCw size={15} className="spin" /> : <KeyRound size={15} />}
+                <span>{loading ? 'Updating...' : 'Confirm PIN Reset'}</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-outline" onClick={copyCreds}>
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+                <span>{copied ? 'Copied!' : 'Copy Credentials'}</span>
+              </button>
+              <button className="btn btn-primary" onClick={onClose}>Done</button>
+            </>
+          )}
         </div>
       </motion.div>
     </div>
@@ -679,6 +1085,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [resetPinStaff, setResetPinStaff] = useState(null);
   const [regularizeRec, setRegularizeRec] = useState(() => {
     if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('test') === 'regularize') {
       return {
@@ -1082,6 +1490,20 @@ export default function AdminPage() {
             isPeriodLocked={lockedMonths.includes(regularizeRec?.month_key || regularizeRec?.date?.slice(0, 7))}
           />
         )}
+        {editingStaff && (
+          <EditStaffModal
+            staff={editingStaff}
+            onClose={() => setEditingStaff(null)}
+            onUpdated={() => { loadStaff(); loadToday(); }}
+          />
+        )}
+        {resetPinStaff && (
+          <ResetPinModal
+            staff={resetPinStaff}
+            onClose={() => setResetPinStaff(null)}
+            onReset={() => { loadStaff(); }}
+          />
+        )}
       </AnimatePresence>
 
       <div className="admin-container">
@@ -1233,77 +1655,85 @@ export default function AdminPage() {
               </div>
             </motion.div>
 
-            {/* ── 4 Shadcn-Style KPI Metric Cards ── */}
+            {/* ── 4 KPI Metric Cards with Spatial 3D Tilt ── */}
             <motion.div className="metrics-grid" variants={fadeUp}>
-              <MagicCard className="metric-card metric-navy" gradientColor="rgba(30, 74, 122, 0.22)">
-                <div className="metric-header">
-                  <span className="metric-label">Total Staff</span>
-                  <div className="metric-icon-wrap icon-navy">
-                    <Users size={17} />
+              <SpatialCard maxTilt={5} depth={8}>
+                <div className="metric-card metric-navy">
+                  <div className="metric-header">
+                    <span className="metric-label">Total Staff</span>
+                    <div className="metric-icon-wrap icon-navy">
+                      <Users size={17} />
+                    </div>
+                  </div>
+                  <div className="metric-body">
+                    <div className="metric-value">
+                      <AnimatedNumber value={allStaff.length} />
+                    </div>
+                    <div className="metric-trend trend-neutral">
+                      <Building2 size={13} />
+                      <span>Registered in DMC</span>
+                    </div>
                   </div>
                 </div>
-                <div className="metric-body">
-                  <div className="metric-value">
-                    <AnimatedNumber value={allStaff.length} />
-                  </div>
-                  <div className="metric-trend trend-neutral">
-                    <Building2 size={13} />
-                    <span>Registered in DMC</span>
-                  </div>
-                </div>
-              </MagicCard>
+              </SpatialCard>
 
-              <MagicCard className="metric-card metric-green" gradientColor="rgba(22, 163, 74, 0.22)">
-                <div className="metric-header">
-                  <span className="metric-label">Present Today</span>
-                  <div className="metric-icon-wrap icon-green">
-                    <CheckCircle2 size={17} />
+              <SpatialCard maxTilt={5} depth={8}>
+                <div className="metric-card metric-green">
+                  <div className="metric-header">
+                    <span className="metric-label">Present Today</span>
+                    <div className="metric-icon-wrap icon-green">
+                      <CheckCircle2 size={17} />
+                    </div>
+                  </div>
+                  <div className="metric-body">
+                    <div className="metric-value">
+                      <AnimatedNumber value={todayRecs.length} />
+                    </div>
+                    <div className="metric-trend trend-up">
+                      <TrendingUp size={13} />
+                      <span>{presentPercentage}% attendance</span>
+                    </div>
                   </div>
                 </div>
-                <div className="metric-body">
-                  <div className="metric-value">
-                    <AnimatedNumber value={todayRecs.length} />
-                  </div>
-                  <div className="metric-trend trend-up">
-                    <TrendingUp size={13} />
-                    <span>{presentPercentage}% attendance</span>
-                  </div>
-                </div>
-              </MagicCard>
+              </SpatialCard>
 
-              <MagicCard className="metric-card metric-saff" gradientColor="rgba(232, 118, 26, 0.22)">
-                <div className="metric-header">
-                  <span className="metric-label">Full Shifts (8h+)</span>
-                  <div className="metric-icon-wrap icon-saff">
-                    <Clock size={17} />
+              <SpatialCard maxTilt={5} depth={8}>
+                <div className="metric-card metric-saff">
+                  <div className="metric-header">
+                    <span className="metric-label">Full Shifts (8h+)</span>
+                    <div className="metric-icon-wrap icon-saff">
+                      <Clock size={17} />
+                    </div>
+                  </div>
+                  <div className="metric-body">
+                    <div className="metric-value">
+                      <AnimatedNumber value={totalFull} />
+                    </div>
+                    <div className="metric-trend trend-neutral">
+                      <span>This month completed</span>
+                    </div>
                   </div>
                 </div>
-                <div className="metric-body">
-                  <div className="metric-value">
-                    <AnimatedNumber value={totalFull} />
-                  </div>
-                  <div className="metric-trend trend-neutral">
-                    <span>This month completed</span>
-                  </div>
-                </div>
-              </MagicCard>
+              </SpatialCard>
 
-              <MagicCard className="metric-card metric-blue" gradientColor="rgba(29, 78, 216, 0.22)">
-                <div className="metric-header">
-                  <span className="metric-label">Salary Payable</span>
-                  <div className="metric-icon-wrap icon-blue">
-                    <IndianRupee size={17} />
+              <SpatialCard maxTilt={5} depth={8}>
+                <div className="metric-card metric-blue">
+                  <div className="metric-header">
+                    <span className="metric-label">Salary Payable</span>
+                    <div className="metric-icon-wrap icon-blue">
+                      <IndianRupee size={17} />
+                    </div>
+                  </div>
+                  <div className="metric-body">
+                    <div className="metric-value">
+                      <AnimatedNumber value={totalPay} prefix="₹" decimals={0} />
+                    </div>
+                    <div className="metric-trend trend-neutral">
+                      <span>{salMonthLabel}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="metric-body">
-                  <div className="metric-value">
-                    <AnimatedNumber value={totalPay} prefix="₹" decimals={0} />
-                  </div>
-                  <div className="metric-trend trend-neutral">
-                    <span>{salMonthLabel}</span>
-                  </div>
-                </div>
-              </MagicCard>
+              </SpatialCard>
             </motion.div>
 
             {/* ── Attendance Trends Area Chart ── */}
@@ -1404,26 +1834,46 @@ export default function AdminPage() {
                                 )}
                               </td>
                               <td className="text-right">
-                                {s.active === false ? (
+                                <div className="actions-group">
                                   <button
-                                    className="btn-icon-primary"
-                                    onClick={() => toggleStaffStatus(s.id, s.name, false)}
-                                    title={`Reactivate ${s.name}`}
-                                    style={{ color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
+                                    className="btn-icon-neutral"
+                                    onClick={() => setEditingStaff(s)}
+                                    title={`Edit profile for ${s.name}`}
                                   >
-                                    <CheckCircle2 size={14} />
-                                    <span className="btn-icon-label" style={{ color: '#16a34a' }}>Reactivate</span>
+                                    <Edit3 size={13} />
+                                    <span className="btn-icon-label">Edit</span>
                                   </button>
-                                ) : (
+
                                   <button
-                                    className="btn-icon-danger"
-                                    onClick={() => toggleStaffStatus(s.id, s.name, true)}
-                                    title={`Deactivate ${s.name}`}
+                                    className="btn-icon-neutral"
+                                    onClick={() => setResetPinStaff(s)}
+                                    title={`Reset login PIN for ${s.name}`}
                                   >
-                                    <Trash2 size={15} />
-                                    <span className="btn-icon-label">Deactivate</span>
+                                    <KeyRound size={13} />
+                                    <span className="btn-icon-label">Reset PIN</span>
                                   </button>
-                                )}
+
+                                  {s.active === false ? (
+                                    <button
+                                      className="btn-icon-primary"
+                                      onClick={() => toggleStaffStatus(s.id, s.name, false)}
+                                      title={`Reactivate ${s.name}`}
+                                      style={{ color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
+                                    >
+                                      <CheckCircle2 size={13} />
+                                      <span className="btn-icon-label" style={{ color: '#16a34a' }}>Reactivate</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="btn-icon-danger"
+                                      onClick={() => toggleStaffStatus(s.id, s.name, true)}
+                                      title={`Deactivate ${s.name}`}
+                                    >
+                                      <Trash2 size={13} />
+                                      <span className="btn-icon-label">Deactivate</span>
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );

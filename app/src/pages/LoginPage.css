@@ -1,15 +1,13 @@
-/* LoginPage.css — Split Screen Shadcn / 21st.dev sign-in.tsx Styling */
+/* LoginPage.css — Neumorphic Soft UI (Light Neumorphism + Monochrome Minimal) */
 
 /* Keyframe Animations */
 @keyframes fadeSlideIn {
   from {
     opacity: 0;
-    filter: blur(4px);
     transform: translateY(12px);
   }
   to {
     opacity: 1;
-    filter: blur(0px);
     transform: translateY(0px);
   }
 }
@@ -17,19 +15,17 @@
 @keyframes slideRightIn {
   from {
     opacity: 0;
-    filter: blur(4px);
-    transform: translateX(20px);
+    transform: translateX(16px);
   }
   to {
     opacity: 1;
-    filter: blur(0px);
     transform: translateX(0px);
   }
 }
 
 @keyframes floatGentle {
   0% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
+  50% { transform: translateY(-5px); }
   100% { transform: translateY(0px); }
 }
 
@@ -38,7 +34,7 @@
   min-height: 100dvh;
   width: 100%;
   display: flex;
-  background-color: #ffffff;
+  background-color: var(--neu-bg);
   overflow-x: hidden;
   font-family: var(--font);
 }
@@ -49,49 +45,67 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 32px;
-  background-color: #ffffff;
+  padding: 48px 36px;
+  background-color: var(--neu-bg);
   min-height: 100vh;
 }
 
 .signin-form-wrapper {
   width: 100%;
-  max-width: 440px;
+  max-width: 450px;
   display: flex;
   flex-direction: column;
   gap: 24px;
   animation: fadeSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  background: var(--neu-bg);
+  border-radius: var(--radius-xl);
+  padding: 36px 32px;
+  box-shadow: var(--neu-flat);
+  border: 1px solid var(--neu-border-light);
+  position: relative;
+}
+
+.signin-form-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* Brand Row */
 .signin-brand-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .signin-brand-logo {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  border: 2px solid #e8761a;
   object-fit: contain;
-  background: #ffffff;
-  padding: 2px;
-  box-shadow: 0 2px 8px rgba(232, 118, 26, 0.2);
+  background: var(--neu-bg);
+  padding: 3px;
+  box-shadow: var(--neu-flat-xs);
+  border: 1px solid var(--neu-border-light);
 }
 
 .signin-org-title {
-  font-size: 0.98rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.01em;
+  color: var(--mono-900);
+  letter-spacing: -0.015em;
 }
 
 .signin-org-subtitle {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--mono-500);
   letter-spacing: 0.02em;
 }
 
@@ -103,31 +117,32 @@
 }
 
 .signin-main-title {
-  font-size: 2.25rem;
-  font-weight: 700;
+  font-size: 2.15rem;
+  font-weight: 800;
   letter-spacing: -0.03em;
-  color: #0f172a;
+  color: var(--mono-900);
   line-height: 1.15;
   margin: 0;
 }
 
 .text-highlight {
-  color: #e8761a;
-  font-weight: 500;
+  color: var(--mono-600);
+  font-weight: 600;
 }
 
 .signin-description {
-  font-size: 0.88rem;
-  color: #64748b;
+  font-size: 0.86rem;
+  color: var(--mono-500);
   line-height: 1.5;
 }
 
-/* Reciprocity & Loss Aversion Utility Banner */
+/* Sunken Neumorphic Utility Banner */
 .signin-utility-banner {
-  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
-  border: 1px solid #bfdbfe;
-  border-radius: 12px;
-  padding: 10px 14px;
+  background: var(--neu-bg);
+  border: 1px solid var(--neu-border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--neu-inset-xs);
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -143,32 +158,33 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: #16a34a;
-  box-shadow: 0 0 8px #16a34a;
-  animation: pulse-ring 2s infinite ease-in-out;
+  background-color: var(--emerald-500);
+  box-shadow: 0 0 8px var(--emerald-500);
+  animation: emeraldGlow 2s infinite ease-in-out;
 }
 
 .utility-badge-text {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #1e3a8a;
+  color: var(--mono-900);
 }
 
 .utility-banner-sub {
   font-size: 0.72rem;
-  color: #475569;
+  color: var(--mono-500);
   line-height: 1.35;
 }
 
-/* Role Tabs */
+/* Sunken Track Role Tabs with Extruded Active Pill */
 .signin-role-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
-  background-color: #f1f5f9;
-  padding: 4px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  background-color: var(--neu-bg);
+  padding: 5px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--neu-inset-sm);
+  border: 1px solid var(--neu-border-light);
 }
 
 .signin-role-btn {
@@ -176,57 +192,60 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 9px 14px;
-  border-radius: 9px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
   border: none;
   background: transparent;
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--mono-500);
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .signin-role-btn.active {
-  background-color: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--neu-convex-btn);
+  color: var(--mono-900);
+  font-weight: 700;
+  box-shadow: var(--neu-flat-xs);
+  border: 1px solid var(--neu-border-light);
 }
 
 /* Form */
 .signin-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .signin-field-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .signin-field-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--mono-600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-/* GlassInputWrapper from 21st.dev */
+/* Sunken Neumorphic Input Well */
 .glass-input-wrapper {
-  border-radius: 14px;
-  border: 1px solid #cbd5e1;
-  background-color: #f8fafc;
-  backdrop-filter: blur(4px);
-  transition: all 0.18s ease;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--neu-border-light);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-inset);
+  transition: all 0.2s ease;
   overflow: hidden;
 }
 
 .glass-input-wrapper:focus-within {
-  border-color: #1e3a8a;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.12);
+  box-shadow: var(--neu-inset-lg), 0 0 0 2px rgba(15, 23, 42, 0.12);
+  border-color: rgba(15, 23, 42, 0.25);
 }
 
 .glass-input-inner {
@@ -238,7 +257,7 @@
 .glass-input-icon {
   position: absolute;
   left: 14px;
-  color: #94a3b8;
+  color: var(--mono-400);
   pointer-events: none;
 }
 
@@ -249,26 +268,37 @@
   background: transparent;
   font-family: inherit;
   font-size: 0.88rem;
-  color: #0f172a;
+  color: var(--mono-900);
   outline: none;
+}
+
+.glass-input::placeholder {
+  color: var(--mono-400);
 }
 
 .glass-eye-toggle {
   position: absolute;
   right: 12px;
-  background: transparent;
-  border: none;
-  color: #94a3b8;
+  background: var(--neu-bg);
+  border: 1px solid var(--neu-border-light);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--neu-flat-xs);
+  color: var(--mono-500);
   cursor: pointer;
-  padding: 4px;
+  padding: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s;
+  transition: all 0.15s;
 }
 
 .glass-eye-toggle:hover {
-  color: #334155;
+  color: var(--mono-900);
+}
+
+.glass-eye-toggle:active {
+  box-shadow: var(--neu-inset-xs);
+  transform: scale(0.95);
 }
 
 .signin-options-row {
@@ -276,7 +306,7 @@
   align-items: center;
   justify-content: space-between;
   font-size: 0.78rem;
-  color: #64748b;
+  color: var(--mono-500);
   margin-top: -2px;
 }
 
@@ -285,84 +315,82 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  user-select: none;
 }
 
 .signin-checkbox {
-  accent-color: #0f172a;
+  accent-color: var(--mono-900);
+  cursor: pointer;
 }
 
 .signin-help-link {
-  color: #1e4a7a;
+  color: var(--mono-700);
   font-weight: 600;
 }
 
-/* Submit Button */
+/* Tactile Extruded Submit Button */
 .signin-submit-btn {
   width: 100%;
-  padding: 14px 20px;
-  border-radius: 14px;
-  background: #0f172a;
-  border: none;
+  padding: 14px 22px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #ffffff;
   font-family: inherit;
   font-size: 0.92rem;
-  font-weight: 600;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
-  transition: all 0.2s ease;
-  margin-top: 4px;
+  box-shadow: 6px 6px 14px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 6px;
 }
 
 .signin-submit-btn:hover:not(:disabled) {
-  background: #1e293b;
+  box-shadow: 8px 8px 18px var(--neu-shadow-dark), -5px -5px 14px var(--neu-shadow-light);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
 }
 
-.admin-theme-btn {
-  background: linear-gradient(135deg, #e8761a, #c2410c);
-  box-shadow: 0 4px 14px rgba(232, 118, 26, 0.25);
-}
-
-.admin-theme-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #f59429, #c2410c);
-  box-shadow: 0 6px 20px rgba(232, 118, 26, 0.35);
+.signin-submit-btn:active:not(:disabled) {
+  box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.6), inset -2px -2px 6px rgba(255, 255, 255, 0.15);
+  background: #0f172a;
+  transform: translateY(1px) scale(0.985);
 }
 
 .signin-submit-btn:disabled {
-  opacity: 0.65;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none;
 }
 
 .signin-footnote {
   font-size: 0.76rem;
-  color: #94a3b8;
+  color: var(--mono-400);
   text-align: center;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .signin-alert-err {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 11px 14px;
-  border-radius: 10px;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
-  font-size: 0.8rem;
-  font-weight: 500;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-flat-xs), 0 0 10px rgba(239, 68, 68, 0.2);
+  border: 1px solid var(--neu-border-light);
+  color: var(--red-600);
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
-/* ── Right Column: Hero Showcase Section ── */
+/* ── Right Column: Neumorphic Showcase Section ── */
 .signin-hero-section {
   flex: 1.1;
-  padding: 16px;
+  padding: 24px;
   display: flex;
   position: relative;
   min-height: 100vh;
@@ -371,26 +399,24 @@
 .signin-hero-bg {
   width: 100%;
   height: 100%;
-  border-radius: 24px;
-  background: linear-gradient(145deg, #091a2e 0%, #0d2646 45%, #153e6f 100%);
+  border-radius: var(--radius-xl);
+  background: var(--neu-bg);
+  box-shadow: var(--neu-flat-lg);
+  border: 1px solid var(--neu-border-light);
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 36px 32px;
-  box-shadow: 0 20px 40px -15px rgba(9, 26, 46, 0.5);
+  padding: 44px 40px;
   animation: slideRightIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Subtle civic decorative pattern */
 .hero-gradient-overlay {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 80% 20%, rgba(232, 118, 26, 0.18) 0%, transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(22, 163, 74, 0.15) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(9, 26, 46, 0.3) 0%, rgba(9, 26, 46, 0.85) 100%);
+  background: radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+              radial-gradient(circle at 20% 80%, rgba(15, 23, 42, 0.05) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -400,15 +426,15 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(10px);
-  color: #f1f5f9;
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  background: var(--neu-bg);
+  box-shadow: var(--neu-flat-xs);
+  border: 1px solid var(--neu-border-light);
+  color: var(--mono-800);
   font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   width: fit-content;
 }
 
@@ -416,36 +442,48 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: #22c55e;
-  box-shadow: 0 0 8px #22c55e;
+  background-color: var(--emerald-500);
+  box-shadow: 0 0 8px var(--emerald-500);
 }
 
-/* Floating Feature Cards (Testimonial Card pattern from 21st.dev) */
+/* Extruded Neumorphic Feature Cards */
 .floating-features-container {
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .floating-feature-card {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(16px);
-  color: #ffffff;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: var(--radius-lg);
+  background: rgba(233, 238, 245, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--neu-flat-sm), inset 0 1px 1px rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--neu-border-light);
+  color: var(--mono-900);
   transition: all 0.25s ease;
-  animation: floatGentle 6s ease-in-out infinite;
+  position: relative;
+}
+
+.floating-feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  pointer-events: none;
 }
 
 .floating-feature-card:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: var(--neu-flat);
   transform: translateY(-2px);
 }
 
@@ -454,42 +492,43 @@
 .card-delay-3 { animation-delay: 4s; }
 
 .feature-card-icon-wrap {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: var(--neu-bg);
+  box-shadow: var(--neu-inset-xs);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #f59429;
+  color: var(--mono-900);
 }
 
 .feature-card-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .feature-card-title {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--mono-900);
   letter-spacing: -0.01em;
   margin: 0;
 }
 
 .feature-card-handle {
-  font-size: 0.7rem;
-  font-family: monospace;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--mono-500);
   margin: 0;
 }
 
 .feature-card-body {
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.8);
-  line-height: 1.4;
+  font-size: 0.8rem;
+  color: var(--mono-600);
+  line-height: 1.45;
   margin: 4px 0 0;
 }
 
@@ -502,6 +541,9 @@
     padding: 24px 18px;
     min-height: 100dvh;
   }
+  .signin-form-wrapper {
+    padding: 28px 22px;
+  }
   .signin-main-title {
     font-size: 1.85rem;
   }
@@ -509,10 +551,11 @@
 
 @media (max-width: 380px) {
   .signin-form-section {
-    padding: 20px 14px;
+    padding: 16px 12px;
   }
   .signin-form-wrapper {
-    gap: 18px;
+    padding: 20px 16px;
+    gap: 16px;
   }
   .signin-main-title {
     font-size: 1.65rem;

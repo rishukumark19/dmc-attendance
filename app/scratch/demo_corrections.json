@@ -1,0 +1,16 @@
+[
+  {
+    "attendance_id": "c0a80101-0000-4000-a000-000000000024",
+    "staff_user_id": "32b7923c-ecbb-4138-a5c1-478f51d1e934",
+    "emp_id": "EMP003",
+    "staff_name": "Manoj Kumar",
+    "correction_type": "CHECKOUT_REGULARIZATION",
+    "old_in_time": "2026-09-24T06:27:00+05:30",
+    "old_out_time": null,
+    "new_in_time": "2026-09-24T06:27:00+05:30",
+    "new_out_time": "2026-09-24T14:55:00+05:30",
+    "reason": "Staff forgot biometric checkout while responding to municipal waterlogging alert at Ward 24.",
+    "corrected_by": "Admin",
+    "created_at": "2026-09-25T09:30:00+05:30"
+  }
+]

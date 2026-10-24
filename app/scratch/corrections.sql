@@ -1,0 +1,2 @@
+INSERT INTO attendance_corrections (attendance_id, staff_user_id, emp_id, staff_name, correction_type, old_in_time, old_out_time, new_in_time, new_out_time, reason, corrected_by, created_at) VALUES
+('c0a80101-0000-4000-a000-000000000024', '32b7923c-ecbb-4138-a5c1-478f51d1e934', 'EMP003', 'Manoj Kumar', 'CHECKOUT_REGULARIZATION', '2026-09-24T06:27:00+05:30', NULL, '2026-09-24T06:27:00+05:30', '2026-09-24T14:55:00+05:30', 'Staff forgot biometric checkout while responding to municipal waterlogging alert at Ward 24.', 'Admin', '2026-09-25T09:30:00+05:30');

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { GlassInputWrapper, FeatureCard } from '../components/ui/sign-in';
+import SpatialCard from '../components/SpatialCard';
 import {
   ShieldCheck,
   User,
@@ -22,7 +23,15 @@ import { springPhysics } from '../lib/animations';
 import './LoginPage.css';
 
 export default function LoginPage() {
-  const [role, setRole] = useState('staff');
+  const [role, setRole] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'admin') return 'admin';
+      return 'staff'; // Default to staff so municipal workers can immediately log in
+    } catch (e) {
+      return 'staff';
+    }
+  });
   const [staffId, setStaffId] = useState(() => localStorage.getItem('dmc_last_staff_id') || '');
   const [staffPin, setStaffPin] = useState('');
   const [adminUser, setAdminUser] = useState(() => localStorage.getItem('dmc_last_admin_user') || 'admin');
@@ -33,26 +42,82 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const errKey = useRef(0);
 
+  React.useEffect(() => {
+    try {
+      if (window.location.search.includes('view=')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (e) {}
+  }, []);
+
   function showErr(msg) {
     errKey.current += 1;
     setError(msg);
   }
 
+  function handleRoleChange(newRole) {
+    setRole(newRole);
+    setError('');
+    try {
+      localStorage.setItem('dmc_last_login_role', newRole);
+    } catch (e) {}
+  }
+
   async function doStaffLogin(e) {
     e.preventDefault();
-    const id = staffId.trim().toUpperCase();
-    const pin = staffPin;
-    if (!id || !pin) { showErr('Please enter both Employee ID and PIN.'); return; }
+    const raw = staffId.trim();
+    const pin = staffPin.trim();
+    if (!raw || !pin) { showErr('Please enter both Employee ID and PIN.'); return; }
+    
+    // Auto-switch to Administrator tab if user entered 'ADMIN'
+    if (raw.toUpperCase() === 'ADMIN') {
+      handleRoleChange('admin');
+      setAdminUser('admin');
+      setAdminPass(pin);
+      showErr('Switched to Administrator login. Please enter your administrator password.');
+      return;
+    }
+
+    // Smart Employee ID Normalization: support EMP001, emp001, 001, 1, or emp001@dmc.org
+    let id = '';
+    let email = '';
+    if (raw.includes('@')) {
+      email = raw.toLowerCase();
+      id = email.split('@')[0].toUpperCase();
+    } else {
+      let clean = raw.toUpperCase();
+      if (/^\d+$/.test(clean)) {
+        clean = `EMP${clean.padStart(3, '0')}`;
+      }
+      id = clean;
+      email = `${id.toLowerCase()}@dmc.org`;
+    }
+
     setLoading(true); setError('');
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: `${id.toLowerCase()}@dmc.org`,
+      let { data, error } = await supabase.auth.signInWithPassword({
+        email,
         password: pin,
       });
+
+      // Graceful fallback between 4-digit and 6-digit default test PINs (1234 <-> 123456)
+      if (error && (pin === '1234' || pin === '123456')) {
+        const altPin = pin === '1234' ? '123456' : '1234';
+        const retry = await supabase.auth.signInWithPassword({
+          email,
+          password: altPin,
+        });
+        if (!retry.error && retry.data?.user) {
+          data = retry.data;
+          error = null;
+        }
+      }
+
       if (error) throw error;
       localStorage.setItem('dmc_last_staff_id', id);
+      localStorage.setItem('dmc_last_login_role', 'staff');
     } catch (e) {
-      showErr('Invalid Employee ID or PIN. Please verify your credentials.');
+      showErr('Invalid Employee ID or PIN. Default PIN is 123456 (or 1234).');
     } finally {
       setLoading(false);
     }
@@ -63,6 +128,16 @@ export default function LoginPage() {
     const user = adminUser.trim();
     const pass = adminPass;
     if (!user || !pass) { showErr('Please enter both username and password.'); return; }
+
+    // If an employee ID was accidentally entered in the Admin portal tab:
+    if (user.toUpperCase().startsWith('EMP') || /^\d+$/.test(user)) {
+      handleRoleChange('staff');
+      setStaffId(user.toUpperCase());
+      setStaffPin(pass);
+      showErr(`Switched to Staff login for ${user.toUpperCase()}. Please click Sign In.`);
+      return;
+    }
+
     setLoading(true); setError('');
     try {
       const email = user.includes('@')
@@ -70,16 +145,26 @@ export default function LoginPage() {
         : user.toLowerCase() === 'admin'
           ? 'admin@nagarnigam.local'
           : `${user.toLowerCase()}@nagarnigam.local`;
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      
+      let { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      if (error && (pass === 'admin' || pass === 'admin123')) {
+        const altPass = pass === 'admin' ? 'admin123' : 'admin';
+        const retry = await supabase.auth.signInWithPassword({ email, password: altPass });
+        if (!retry.error && retry.data?.user) {
+          data = retry.data;
+          error = null;
+        }
+      }
       if (error) throw error;
       localStorage.setItem('dmc_last_admin_user', user);
-      const { data: profile } = await supabase.from('staff').select('role').eq('user_id', data.user.id).single();
-      if (profile?.role !== 'admin') {
+      localStorage.setItem('dmc_last_login_role', 'admin');
+      const { data: profile, error: profErr } = await supabase.from('staff').select('role').eq('user_id', data.user.id).single();
+      if (profErr || profile?.role !== 'admin') {
         await supabase.auth.signOut();
         throw new Error('This account does not have administrator privileges.');
       }
     } catch (e) {
-      showErr(e.message?.includes('Invalid') ? 'Invalid administrator credentials.' : e.message);
+      showErr(e.message?.includes('Invalid') ? 'Invalid administrator credentials. Default password is admin123 (or admin).' : e.message);
     } finally {
       setLoading(false);
     }
@@ -129,7 +214,7 @@ export default function LoginPage() {
             <button
               type="button"
               className={`signin-role-btn ${role === 'staff' ? 'active' : ''}`}
-              onClick={() => { setRole('staff'); setError(''); }}
+              onClick={() => handleRoleChange('staff')}
             >
               <User size={16} />
               <span>Staff / कर्मचारी</span>
@@ -137,7 +222,7 @@ export default function LoginPage() {
             <button
               type="button"
               className={`signin-role-btn ${role === 'admin' ? 'active' : ''}`}
-              onClick={() => { setRole('admin'); setError(''); }}
+              onClick={() => handleRoleChange('admin')}
             >
               <ShieldCheck size={16} />
               <span>Administrator</span>
@@ -194,15 +279,15 @@ export default function LoginPage() {
                 </div>
 
                 <div className="signin-field-group">
-                  <label className="signin-field-label">Login PIN / 4-अंकीय पिन</label>
+                  <label className="signin-field-label">Login PIN / कर्मचारी पिन</label>
                   <GlassInputWrapper>
                     <div className="glass-input-inner">
                       <KeyRound size={17} className="glass-input-icon" />
                       <input
                         type={showPin ? 'text' : 'password'}
                         className="glass-input font-mono"
-                        placeholder="• • • •"
-                        maxLength={8}
+                        placeholder="e.g. 123456"
+                        maxLength={6}
                         value={staffPin}
                         onChange={e => setStaffPin(e.target.value)}
                         inputMode="numeric"
@@ -217,6 +302,9 @@ export default function LoginPage() {
                       </button>
                     </div>
                   </GlassInputWrapper>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--mono-500)', marginTop: '4px', textAlign: 'right' }}>
+                    Default PIN: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>123456</span> (or <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>1234</span>) • e.g. <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>EMP001</span>
+                  </div>
                 </div>
 
                 <div className="signin-options-row">
@@ -293,6 +381,9 @@ export default function LoginPage() {
                       </button>
                     </div>
                   </GlassInputWrapper>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--mono-500)', marginTop: '4px', textAlign: 'right' }}>
+                    Default password: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>admin123</span> (or <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>admin</span>)
+                  </div>
                 </div>
 
                 <div className="signin-options-row">
@@ -331,29 +422,35 @@ export default function LoginPage() {
             <span>Official Government Portal • Dhanbad</span>
           </div>
 
-          {/* Floating Testimonial / System Highlights (from 21st.dev template) */}
+          {/* Floating Testimonial / System Highlights (from 21st.dev template) with Spatial Depth */}
           <div className="floating-features-container">
-            <FeatureCard
-              icon={CheckCircle2}
-              title="Daily Attendance"
-              handle="@realtime-sync"
-              text="Mandatory 6:00 to 8:00 AM check-in window with instant shift verification."
-              delay="card-delay-1"
-            />
-            <FeatureCard
-              icon={IndianRupee}
-              title="Automated Payroll"
-              handle="@fair-wages"
-              text="Calculates ₹450 daily rate for verified 8-hour shifts with one-click CSV export."
-              delay="card-delay-2"
-            />
-            <FeatureCard
-              icon={Building2}
-              title="Civic Sanitation"
-              handle="@dmc-operations"
-              text="Empowering municipal staff and administrators with transparent record keeping."
-              delay="card-delay-3"
-            />
+            <SpatialCard maxTilt={7} depth={10}>
+              <FeatureCard
+                icon={CheckCircle2}
+                title="Daily Attendance"
+                handle="@realtime-sync"
+                text="Mandatory 6:00 to 8:00 AM check-in window with instant shift verification."
+                delay="card-delay-1"
+              />
+            </SpatialCard>
+            <SpatialCard maxTilt={7} depth={10}>
+              <FeatureCard
+                icon={IndianRupee}
+                title="Automated Payroll"
+                handle="@fair-wages"
+                text="Calculates ₹450 daily rate for verified 8-hour shifts with one-click CSV export."
+                delay="card-delay-2"
+              />
+            </SpatialCard>
+            <SpatialCard maxTilt={7} depth={10}>
+              <FeatureCard
+                icon={Building2}
+                title="Civic Sanitation"
+                handle="@dmc-operations"
+                text="Empowering municipal staff and administrators with transparent record keeping."
+                delay="card-delay-3"
+              />
+            </SpatialCard>
           </div>
         </div>
       </section>

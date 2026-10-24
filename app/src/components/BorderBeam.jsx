@@ -9,8 +9,8 @@ export default function BorderBeam({
   className = '',
   size = 200,
   duration = 12,
-  colorFrom = '#e8761a',
-  colorTo = '#1e4a7a',
+  colorFrom = 'rgba(16, 185, 129, 0.45)',
+  colorTo = 'rgba(255, 255, 255, 0.8)',
 }) {
   return (
     <div

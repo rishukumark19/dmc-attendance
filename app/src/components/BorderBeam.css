@@ -10,30 +10,32 @@
 
 .border-beam-wrap {
   position: relative;
-  border-radius: inherit;
-  padding: 1.5px;
+  border-radius: var(--radius-xl);
+  padding: 1px;
   background: transparent;
+  overflow: hidden;
 }
 
 .border-beam-anim {
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  inset: -50%;
+  border-radius: var(--radius-xl);
   background: conic-gradient(
     from var(--beam-angle),
-    transparent 30%,
-    var(--beam-from, #e8761a) 50%,
-    var(--beam-to, #1e4a7a) 60%,
+    transparent 20%,
+    var(--beam-from, rgba(16, 185, 129, 0.45)) 50%,
+    var(--beam-to, rgba(255, 255, 255, 0.8)) 60%,
     transparent 80%
   );
   animation: beam-rotate var(--beam-duration, 10s) linear infinite;
   z-index: 0;
+  pointer-events: none;
 }
 
 .border-beam-inner {
   position: relative;
   z-index: 1;
-  border-radius: inherit;
+  border-radius: var(--radius-xl);
   background: inherit;
   height: 100%;
 }
