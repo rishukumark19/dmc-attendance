@@ -147,3 +147,42 @@ export const fillMonths = (count = 12) => {
     };
   });
 };
+
+/**
+ * Format timestamp for audit logs ensuring single-line output (no am/pm wrapping)
+ */
+export const fmtAuditTimestamp = (iso) => {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const dateStr = d.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    });
+    const timeStr = d.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).toUpperCase();
+    return `${dateStr},\u00A0${timeStr.replace(/\s+/g, '\u00A0')}`;
+  } catch {
+    return '—';
+  }
+};
+
+/**
+ * Strips Hindi / bilingual text from ward names (e.g. "Ward 12 (Bank More / बैंक मोड़)" -> "Ward 12 (Bank More)")
+ */
+export const cleanWard = (w) => {
+  if (!w) return '';
+  return String(w)
+    .replace(/\s*\/\s*[\u0900-\u097F\s]+(?=\))/g, '')
+    .replace(/[\u0900-\u097F]+/g, '')
+    .replace(/\s*\/\s*\)/g, ')')
+    .replace(/\s+/g, ' ')
+    .trim();
+};

@@ -14,7 +14,7 @@ function AppRoutes() {
       <div className="page-loader">
         <div className="page-loader-box">
           <div className="spinner" />
-          <span>Loading portal... / पोर्टल लोड हो रहा है...</span>
+          <span>Loading portal...</span>
         </div>
       </div>
     );
@@ -27,7 +27,7 @@ function AppRoutes() {
       <div className="page-loader" style={{ padding: 20 }}>
         <div className="page-loader-box" style={{ maxWidth: 440, padding: 36, textAlign: 'center' }}>
           <h3 style={{ fontSize: '1.2rem', color: 'var(--red-600, #dc2626)', marginBottom: 8, fontWeight: 800 }}>
-            Profile Not Found / प्रोफाइल नहीं मिला
+            Profile Not Found
           </h3>
           <p style={{ fontSize: '0.875rem', color: 'var(--mono-600, #475569)', lineHeight: 1.5, marginBottom: 24 }}>
             This account ({session.user?.email || 'User'}) does not have an active municipal staff profile record.
@@ -37,7 +37,7 @@ function AppRoutes() {
             className="btn btn-primary"
             style={{ padding: '12px 26px' }}
           >
-            Logout / लॉग आउट करें
+            Logout
           </button>
         </div>
       </div>
@@ -59,30 +59,30 @@ export default function App() {
           style: {
             fontFamily: "'Inter', system-ui, sans-serif",
             fontSize: '0.85rem',
-            fontWeight: '700',
-            borderRadius: '14px',
-            background: 'var(--neu-bg, #e9eef5)',
-            color: 'var(--mono-900, #0f172a)',
-            boxShadow: '6px 6px 16px rgba(164, 178, 198, 0.7), -6px -6px 16px rgba(255, 255, 255, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.8)',
-            padding: '12px 20px',
+            fontWeight: '600',
+            borderRadius: '10px',
+            background: '#ffffff',
+            color: '#0f172a',
+            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04)',
+            border: '1px solid #e2e8f0',
+            padding: '10px 18px',
           },
           success: {
-            iconTheme: { primary: '#10b981', secondary: '#ffffff' },
+            iconTheme: { primary: '#059669', secondary: '#ffffff' },
             style: {
-              background: '#e9eef5',
-              color: '#047857',
-              border: '1px solid rgba(255, 255, 255, 0.9)',
-              boxShadow: '6px 6px 16px rgba(164, 178, 198, 0.7), -6px -6px 16px rgba(255, 255, 255, 0.95), 0 0 12px rgba(16, 185, 129, 0.25)',
+              background: '#ffffff',
+              color: '#0f172a',
+              border: '1px solid #a7f3d0',
+              boxShadow: '0 4px 14px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04)',
             },
           },
           error: {
-            iconTheme: { primary: '#ef4444', secondary: '#ffffff' },
+            iconTheme: { primary: '#dc2626', secondary: '#ffffff' },
             style: {
-              background: '#e9eef5',
-              color: '#b91c1c',
-              border: '1px solid rgba(255, 255, 255, 0.9)',
-              boxShadow: '6px 6px 16px rgba(164, 178, 198, 0.7), -6px -6px 16px rgba(255, 255, 255, 0.95), 0 0 12px rgba(239, 68, 68, 0.25)',
+              background: '#ffffff',
+              color: '#0f172a',
+              border: '1px solid #fecaca',
+              boxShadow: '0 4px 14px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04)',
             },
           },
         }}

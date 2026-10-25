@@ -12,7 +12,7 @@ import {
   Award,
   ChevronRight
 } from './Icons';
-import { hrs, pay, money, fmtT, pad } from '../lib/utils';
+import { hrs, pay, money, fmtT, pad, cleanWard } from '../lib/utils';
 import './AttendanceCalendarMap.css';
 
 const WEEKDAYS = [
@@ -44,7 +44,7 @@ export default function AttendanceCalendarMap({
   monthKey,
   records = [],
   todayDate,
-  dutyWard = 'Ward 12 (Bank More / बैंक मोड़)'
+  dutyWard = 'Ward 12 (Bank More)'
 }) {
   const [yearNum, monthNum] = useMemo(() => {
     const parts = (monthKey || '').split('-').map(Number);
@@ -470,7 +470,7 @@ export default function AttendanceCalendarMap({
               <div className="inspector-footer-bar">
                 <div className="inspector-ward-badge">
                   <MapPin size={13} className="text-muted" />
-                  <span>{activeSelectedCell.rec.ward || dutyWard}</span>
+                  <span>{cleanWard(activeSelectedCell.rec.ward || dutyWard)}</span>
                 </div>
 
                 {activeSelectedCell.rec.is_corrected ? (

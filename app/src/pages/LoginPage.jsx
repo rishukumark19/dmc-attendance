@@ -18,7 +18,16 @@ import {
   IndianRupee,
   Clock,
   Sparkles,
-} from '../components/Icons';
+  Fingerprint,
+  Check,
+  MapPin,
+  Activity,
+  Zap,
+  Radio,
+  FileCheck2,
+} from 'lucide-react';
+import InteractiveDotGrid from '../components/InteractiveDotGrid';
+import HeroAmbientGlow from '../components/HeroAmbientGlow';
 import { springPhysics } from '../lib/animations';
 import './LoginPage.css';
 
@@ -172,10 +181,20 @@ export default function LoginPage() {
 
   return (
     <div className="signin-page-layout">
-      {/* ── Left Column: Sign-in Form ── */}
-      <section className="signin-form-section">
+      {/* Subtle Architectural Dot Grid Canvas */}
+      <InteractiveDotGrid
+        gridSpacing={36}
+        connectionDistance={110}
+        dotColor="rgba(148, 163, 184, 0.2)"
+        activeColor="#0f172a"
+        accentColor="#334155"
+        ambientNodeCount={4}
+      />
+
+      {/* ── Centered Login Card (Intentional Minimalism) ── */}
+      <main className="signin-main-container">
         <div className="signin-form-wrapper">
-          {/* Brand Row */}
+          {/* Brand Header */}
           <div className="signin-brand-row">
             <img
               src={`${import.meta.env.BASE_URL}logo.png`}
@@ -183,48 +202,35 @@ export default function LoginPage() {
               className="signin-brand-logo"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
-            <div>
-              <div className="signin-org-title">धनबाद नगर निगम</div>
-              <div className="signin-org-subtitle">Dhanbad Municipal Corporation</div>
+            <div className="signin-brand-text">
+              <div className="signin-org-title">Dhanbad Municipal Corporation</div>
+              <div className="signin-org-subtitle">Attendance Management System</div>
             </div>
           </div>
 
           <div className="signin-headings">
-            <h1 className="signin-main-title">
-              Sign In <span className="text-highlight">/ प्रवेश</span>
-            </h1>
+            <h1 className="signin-main-title">Sign In</h1>
             <p className="signin-description">
-              Access employee daily attendance and municipal payroll administration
+              Access employee daily attendance and municipal duty verification
             </p>
           </div>
 
-          {/* Reciprocity & Loss Aversion Live Utility Banner */}
-          <div className="signin-utility-banner">
-            <div className="utility-banner-row">
-              <span className="utility-badge-pulse" />
-              <span className="utility-badge-text">Shift Window: 6:00 – 8:00 AM IST • Rate: ₹450/8h</span>
-            </div>
-            <div className="utility-banner-sub">
-              Log in before 8:00 AM to prevent losing today's full shift attendance credit.
-            </div>
-          </div>
-
-          {/* Role Tabs */}
+          {/* Segmented Role Tabs */}
           <div className="signin-role-tabs">
             <button
               type="button"
               className={`signin-role-btn ${role === 'staff' ? 'active' : ''}`}
               onClick={() => handleRoleChange('staff')}
             >
-              <User size={16} />
-              <span>Staff / कर्मचारी</span>
+              <User size={15} />
+              <span>Staff</span>
             </button>
             <button
               type="button"
               className={`signin-role-btn ${role === 'admin' ? 'active' : ''}`}
               onClick={() => handleRoleChange('admin')}
             >
-              <ShieldCheck size={16} />
+              <ShieldCheck size={15} />
               <span>Administrator</span>
             </button>
           </div>
@@ -253,16 +259,19 @@ export default function LoginPage() {
                 key="staff"
                 onSubmit={doStaffLogin}
                 className="signin-form"
-                initial={{ opacity: 0, x: -12 }}
+                initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.25 }}
+                exit={{ opacity: 0, x: 10 }}
+                transition={{ duration: 0.2 }}
               >
                 <div className="signin-field-group">
-                  <label className="signin-field-label">Employee ID / कर्मचारी क्रमांक</label>
+                  <div className="signin-field-header">
+                    <label className="signin-field-label">Employee ID</label>
+                    <span className="signin-field-hint font-mono">e.g. EMP001</span>
+                  </div>
                   <GlassInputWrapper>
                     <div className="glass-input-inner">
-                      <User size={17} className="glass-input-icon" />
+                      <User size={16} className="glass-input-icon" />
                       <input
                         type="text"
                         className="glass-input font-mono"
@@ -279,14 +288,17 @@ export default function LoginPage() {
                 </div>
 
                 <div className="signin-field-group">
-                  <label className="signin-field-label">Login PIN / कर्मचारी पिन</label>
+                  <div className="signin-field-header">
+                    <label className="signin-field-label">PIN</label>
+                    <span className="signin-field-hint font-mono">e.g. 123456</span>
+                  </div>
                   <GlassInputWrapper>
                     <div className="glass-input-inner">
-                      <KeyRound size={17} className="glass-input-icon" />
+                      <KeyRound size={16} className="glass-input-icon" />
                       <input
                         type={showPin ? 'text' : 'password'}
                         className="glass-input font-mono"
-                        placeholder="e.g. 123456"
+                        placeholder="••••••"
                         maxLength={6}
                         value={staffPin}
                         onChange={e => setStaffPin(e.target.value)}
@@ -298,13 +310,10 @@ export default function LoginPage() {
                         onClick={() => setShowPin(v => !v)}
                         aria-label="Toggle PIN visibility"
                       >
-                        {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showPin ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
                   </GlassInputWrapper>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--mono-500)', marginTop: '4px', textAlign: 'right' }}>
-                    Default PIN: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>123456</span> (or <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>1234</span>) • e.g. <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>EMP001</span>
-                  </div>
                 </div>
 
                 <div className="signin-options-row">
@@ -312,40 +321,45 @@ export default function LoginPage() {
                     <input type="checkbox" defaultChecked className="signin-checkbox" />
                     <span>Remember on this device</span>
                   </label>
-                  <span className="signin-help-link">Window: 6:00 – 8:00 AM</span>
                 </div>
 
                 <motion.button
                   type="submit"
                   className="signin-submit-btn"
                   disabled={loading}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
+                  whileHover={{ scale: 1.012 }}
+                  whileTap={{ scale: 0.985 }}
                   transition={springPhysics.snappy}
                 >
-                  {loading ? <RefreshCw size={17} className="spin" /> : <ArrowRight size={17} />}
-                  <span>{loading ? 'Authenticating...' : 'Sign In as Staff'}</span>
+                  <span className="btn-label-text">{loading ? 'Authenticating...' : 'Sign In'}</span>
+                  {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} className="btn-arrow-icon" />}
                 </motion.button>
 
-                <p className="signin-footnote">
-                  Forgot PIN or not registered? Contact the DMC Administrator.
-                </p>
+                <div className="signin-clean-footer">
+                  <span>Need assistance?</span>
+                  <a href="#help" onClick={(e) => { e.preventDefault(); showErr('Please contact DMC Administrative Control Room (Ext. 104).'); }}>
+                    Contact Administrator
+                  </a>
+                </div>
               </motion.form>
             ) : (
               <motion.form
                 key="admin"
                 onSubmit={doAdminLogin}
                 className="signin-form"
-                initial={{ opacity: 0, x: 12 }}
+                initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -12 }}
-                transition={{ duration: 0.25 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
               >
                 <div className="signin-field-group">
-                  <label className="signin-field-label">Administrator Username or Email</label>
+                  <div className="signin-field-header">
+                    <label className="signin-field-label">Username or Email</label>
+                    <span className="signin-field-hint font-mono">e.g. admin</span>
+                  </div>
                   <GlassInputWrapper>
                     <div className="glass-input-inner">
-                      <ShieldCheck size={17} className="glass-input-icon" />
+                      <ShieldCheck size={16} className="glass-input-icon" />
                       <input
                         type="text"
                         className="glass-input"
@@ -360,10 +374,13 @@ export default function LoginPage() {
                 </div>
 
                 <div className="signin-field-group">
-                  <label className="signin-field-label">Admin Password</label>
+                  <div className="signin-field-header">
+                    <label className="signin-field-label">Password</label>
+                    <span className="signin-field-hint font-mono">e.g. admin123</span>
+                  </div>
                   <GlassInputWrapper>
                     <div className="glass-input-inner">
-                      <Lock size={17} className="glass-input-icon" />
+                      <Lock size={16} className="glass-input-icon" />
                       <input
                         type={showPass ? 'text' : 'password'}
                         className="glass-input"
@@ -377,13 +394,10 @@ export default function LoginPage() {
                         onClick={() => setShowPass(v => !v)}
                         aria-label="Toggle password visibility"
                       >
-                        {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
                   </GlassInputWrapper>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--mono-500)', marginTop: '4px', textAlign: 'right' }}>
-                    Default password: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>admin123</span> (or <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>admin</span>)
-                  </div>
                 </div>
 
                 <div className="signin-options-row">
@@ -391,69 +405,28 @@ export default function LoginPage() {
                     <input type="checkbox" defaultChecked className="signin-checkbox" />
                     <span>Keep admin session</span>
                   </label>
-                  <span className="signin-help-link">Secure Portal Access</span>
                 </div>
 
                 <motion.button
                   type="submit"
                   className="signin-submit-btn admin-theme-btn"
                   disabled={loading}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
+                  whileHover={{ scale: 1.012 }}
+                  whileTap={{ scale: 0.985 }}
                   transition={springPhysics.snappy}
                 >
-                  {loading ? <RefreshCw size={17} className="spin" /> : <ArrowRight size={17} />}
-                  <span>{loading ? 'Authenticating...' : 'Sign In as Administrator'}</span>
+                  <span className="btn-label-text">{loading ? 'Authenticating...' : 'Sign In as Administrator'}</span>
+                  {loading ? <RefreshCw size={16} className="spin" /> : <ArrowRight size={16} className="btn-arrow-icon" />}
                 </motion.button>
+
+                <div className="signin-clean-footer">
+                  <span>DMC Administration • Room 104</span>
+                </div>
               </motion.form>
             )}
           </AnimatePresence>
         </div>
-      </section>
-
-      {/* ── Right Column: Hero Showcase + Floating Feature Cards ── */}
-      <section className="signin-hero-section">
-        <div className="signin-hero-bg">
-          <div className="hero-gradient-overlay" />
-
-          {/* Top Emblem Badge */}
-          <div className="hero-top-badge">
-            <span className="hero-badge-dot" />
-            <span>Official Government Portal • Dhanbad</span>
-          </div>
-
-          {/* Floating Testimonial / System Highlights (from 21st.dev template) with Spatial Depth */}
-          <div className="floating-features-container">
-            <SpatialCard maxTilt={7} depth={10}>
-              <FeatureCard
-                icon={CheckCircle2}
-                title="Daily Attendance"
-                handle="@realtime-sync"
-                text="Mandatory 6:00 to 8:00 AM check-in window with instant shift verification."
-                delay="card-delay-1"
-              />
-            </SpatialCard>
-            <SpatialCard maxTilt={7} depth={10}>
-              <FeatureCard
-                icon={IndianRupee}
-                title="Automated Payroll"
-                handle="@fair-wages"
-                text="Calculates ₹450 daily rate for verified 8-hour shifts with one-click CSV export."
-                delay="card-delay-2"
-              />
-            </SpatialCard>
-            <SpatialCard maxTilt={7} depth={10}>
-              <FeatureCard
-                icon={Building2}
-                title="Civic Sanitation"
-                handle="@dmc-operations"
-                text="Empowering municipal staff and administrators with transparent record keeping."
-                delay="card-delay-3"
-              />
-            </SpatialCard>
-          </div>
-        </div>
-      </section>
+      </main>
     </div>
   );
 }

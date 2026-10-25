@@ -1,37 +1,22 @@
-/* Header.css — Neumorphic Soft UI with Spatial Floating Dock & Specular Light */
-.hdr {
-  background: rgba(233, 238, 245, 0.82);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  position: sticky;
-  top: 10px;
-  z-index: 100;
-  margin: 8px 16px 4px;
-  border-radius: var(--radius-xl);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 16px 36px -10px var(--neu-shadow-dark),
-              inset 0 1px 2px 0 rgba(255, 255, 255, 0.95),
-              inset 0 -1px 1px 0 rgba(164, 178, 198, 0.3);
-  overflow: hidden;
-  transition: all 0.25s ease;
-}
+/* Header.css — Intentional Minimalism (Civic Administrative Modernism) */
 
-/* Spatial Specular Rim Light across top border */
-.hdr::before {
-  content: '';
-  position: absolute;
+.hdr {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: sticky;
   top: 0;
-  left: 15%;
-  right: 15%;
-  height: 1.5px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
-  pointer-events: none;
-  z-index: 10;
+  z-index: 100;
+  margin: 0;
+  width: 100%;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+  transition: all 0.2s ease;
 }
 
 .tristrip {
-  height: 3px;
-  background: linear-gradient(90deg, #0f172a 0%, #0f172a 33.3%, #ffffff 33.3%, #ffffff 66.6%, #10b981 66.6%, #10b981 100%);
+  height: 2.5px;
+  background: linear-gradient(90deg, #0b1f38 0%, #0b1f38 33.3%, #ffffff 33.3%, #ffffff 66.6%, #10b981 66.6%, #10b981 100%);
   width: 100%;
 }
 
@@ -48,44 +33,44 @@
 .hdr-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
 .hdr-menu-btn {
   display: none;
-  background: var(--neu-bg);
-  border: 1px solid var(--neu-border-light);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: var(--radius-sm);
   color: var(--mono-800);
-  box-shadow: var(--neu-flat-xs);
-  padding: 8px;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  padding: 7px;
   cursor: pointer;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
 }
 
+.hdr-menu-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
 .hdr-menu-btn:active {
-  box-shadow: var(--neu-inset-xs);
-  transform: scale(0.96);
+  background: #f1f5f9;
+  transform: scale(0.97);
 }
 
 .hdr-logo {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   object-fit: contain;
-  background: var(--neu-bg);
-  padding: 3px;
+  background: #ffffff;
+  padding: 2px;
   flex-shrink: 0;
-  box-shadow: var(--neu-flat-xs);
-  border: 1px solid var(--neu-border-light);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.hdr-logo:hover {
-  transform: scale(1.05) translateZ(4px);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
 }
 
 .hdr-text {
@@ -96,13 +81,13 @@
 .hdr-brand-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .hdr-brand-row h1 {
-  font-size: 1.02rem;
-  font-weight: 800;
+  font-size: 0.96rem;
+  font-weight: 700;
   letter-spacing: -0.015em;
   color: var(--mono-900);
   white-space: nowrap;
@@ -111,23 +96,21 @@
   margin: 0;
 }
 
-/* Spatial Sunken Neumorphic Live Pill */
+/* Minimalist Civic Live Badge */
 .hdr-live-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: var(--neu-bg);
-  box-shadow: var(--neu-inset-xs);
-  border: 1px solid var(--neu-border-light);
-  color: var(--emerald-600);
-  font-size: 0.68rem;
+  gap: 5px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   flex-shrink: 0;
-  position: relative;
 }
 
 .live-pulse {
@@ -135,136 +118,127 @@
   height: 6px;
   border-radius: 50%;
   background-color: var(--emerald-500);
-  box-shadow: 0 0 8px var(--emerald-500);
-  animation: emeraldGlow 2s infinite ease-in-out;
 }
 
 .hdr-text p {
-  font-size: 0.73rem;
+  font-size: 0.72rem;
   color: var(--mono-500);
   margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .hdr-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-/* Tactile User Chip with Spatial 3D Lift */
+/* Minimalist User Chip */
 .hdr-chip {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--neu-bg);
-  box-shadow: var(--neu-flat-xs);
-  border: 1px solid var(--neu-border-light);
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: var(--radius-full);
-  padding: 4px 16px 4px 5px;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  transform-style: preserve-3d;
+  padding: 3px 12px 3px 4px;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+  transition: all 0.15s ease;
 }
 
 .hdr-chip:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 8px 18px -4px var(--neu-shadow-dark), -4px -4px 12px var(--neu-shadow-light);
+  border-color: #cbd5e1;
+  background: #f8fafc;
 }
 
 .hdr-avatar {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 700;
   flex-shrink: 0;
-  box-shadow: var(--neu-flat-xs);
-  border: 1px solid var(--neu-border-light);
 }
 
 .hdr-avatar-admin {
-  background: linear-gradient(145deg, #1e293b, #0f172a);
+  background: #0f172a;
   color: #ffffff;
 }
 
 .hdr-avatar-staff {
-  background: var(--neu-convex);
+  background: #f1f5f9;
   color: var(--mono-900);
+  border: 1px solid #e2e8f0;
 }
 
 .hdr-user-info {
   display: flex;
   flex-direction: column;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .hdr-user-name {
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--mono-900);
 }
 
 .hdr-user-role {
-  font-size: 0.67rem;
+  font-size: 0.65rem;
   color: var(--mono-500);
   font-weight: 500;
 }
 
-/* Spatial Tactile Logout Button with Red Alert hover */
+/* Minimalist Logout Button */
 .btn-logout {
-  background: var(--neu-convex-btn);
-  border: 1px solid var(--neu-border-light);
-  box-shadow: var(--neu-flat-xs);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.03);
   color: var(--mono-700);
   border-radius: var(--radius-full);
-  padding: 8px 16px;
+  padding: 6px 14px;
   font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
   font-family: var(--font);
   display: flex;
   align-items: center;
-  gap: 7px;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 6px;
+  transition: all 0.15s ease;
 }
 
 .btn-logout:hover {
   color: var(--red-600);
-  box-shadow: var(--neu-flat-sm), 0 0 10px rgba(239, 68, 68, 0.25);
-  transform: translateY(-2px);
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 
 .btn-logout:active {
-  box-shadow: var(--neu-inset-xs);
-  background: var(--neu-bg);
-  transform: translateY(1px) scale(0.97);
+  background: #fee2e2;
+  transform: translateY(1px);
 }
 
 @media (max-width: 768px) {
-  .hdr {
-    margin: 6px 10px 0;
-  }
   .hdr-inner {
-    padding: 8px 12px;
+    padding: 8px 14px;
     gap: 8px;
   }
   .hdr-left {
     gap: 10px;
-    min-width: 0;
   }
   .hdr-logo {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
   }
   .hdr-brand-row h1 {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
   .hdr-text p {
     font-size: 0.67rem;
@@ -273,36 +247,24 @@
     display: none !important;
   }
   .hdr-chip {
-    padding: 3px;
+    padding: 2px;
+    border: none;
+    background: transparent;
+    box-shadow: none;
   }
   .btn-logout {
-    padding: 8px;
-    min-height: 36px;
-    min-width: 36px;
+    padding: 7px;
+    min-height: 34px;
+    min-width: 34px;
     justify-content: center;
   }
 }
 
 @media (max-width: 360px) {
-  .hdr {
-    margin: 4px 6px 0;
-  }
   .hdr-inner {
-    padding: 6px 8px;
-    gap: 6px;
-  }
-  .hdr-left {
-    gap: 6px;
-  }
-  .hdr-logo {
-    width: 30px;
-    height: 30px;
+    padding: 6px 10px;
   }
   .hdr-brand-row h1 {
     font-size: 0.8rem;
-  }
-  .hdr-live-pill {
-    padding: 2px 6px;
-    font-size: 0.6rem;
   }
 }

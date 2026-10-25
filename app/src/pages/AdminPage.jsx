@@ -5,9 +5,8 @@ import Header from '../components/Header';
 import AnimatedNumber from '../components/AnimatedNumber';
 import MagicCard from '../components/MagicCard';
 import SpatialCard from '../components/SpatialCard';
-import AttendanceChart from '../components/AttendanceChart';
 import { supabase, makeTempClient } from '../lib/supabase';
-import { todayIST, hrs, pay, money, fmtT, getInitials, fillMonths, sanitizeCSVCell, isPastIncomplete, getISTParts, parseCSVLine } from '../lib/utils';
+import { todayIST, hrs, pay, money, fmtT, fmtAuditTimestamp, cleanWard, getInitials, fillMonths, sanitizeCSVCell, isPastIncomplete, getISTParts, parseCSVLine } from '../lib/utils';
 import { triggerCelebration, springPhysics } from '../lib/animations';
 import AnimatedCheckmark from '../components/AnimatedCheckmark';
 import {
@@ -36,6 +35,8 @@ import {
   Copy,
   Printer,
   Check,
+  ChevronDown,
+  Filter,
 } from '../components/Icons';
 import './AdminPage.css';
 
@@ -51,11 +52,11 @@ const fadeUp = {
 const MONTHS = fillMonths(12);
 
 const WARDS = [
-  'Ward 12 (Bank More / बैंक मोड़)',
-  'Ward 24 (Hirapur / हीरापुर)',
-  'Ward 31 (Steel Gate / स्टील गेट)',
-  'Ward 45 (Saraidhela / सरायढेला)',
-  'Ward 08 (Katras / कतरास)'
+  'Ward 12 (Bank More)',
+  'Ward 24 (Hirapur)',
+  'Ward 31 (Steel Gate)',
+  'Ward 45 (Saraidhela)',
+  'Ward 08 (Katras)'
 ];
 
 // ──────────────────────────────────────────────
@@ -128,7 +129,7 @@ function RegularizeModal({ record, onClose, onSaved, isPeriodLocked = false }) {
               <Edit3 size={18} />
             </div>
             <div>
-              <h3>Regularize Attendance / उपस्थिति सुधार</h3>
+              <h3>Regularize Attendance</h3>
               <p className="modal-sub">{record.staff_name} ({record.emp_id}) • Date: {record.date}</p>
             </div>
           </div>
@@ -159,7 +160,7 @@ function RegularizeModal({ record, onClose, onSaved, isPeriodLocked = false }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Reason for Correction / सुधार का कारण *</label>
+            <label className="form-label">Reason for Correction *</label>
             <textarea
               className="form-input"
               rows={3}
@@ -235,9 +236,9 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
 
   function loadSampleData() {
     setCsvText(
-      "Ramesh Kumar,EMP101,654321,Ward 12 (Bank More / बैंक मोड़),Sanitation\n" +
-      "Sita Devi,EMP102,789123,Ward 24 (Hirapur / हीरापुर),Sanitation\n" +
-      "Amit Singh,EMP103,456789,Ward 31 (Steel Gate / स्टील गेट),Sanitation"
+      "Ramesh Kumar,EMP101,654321,Ward 12 (Bank More),Sanitation\n" +
+      "Sita Devi,EMP102,789123,Ward 24 (Hirapur),Sanitation\n" +
+      "Amit Singh,EMP103,456789,Ward 31 (Steel Gate),Sanitation"
     );
   }
 
@@ -361,7 +362,7 @@ function BulkStaffModal({ onClose, onImported, existingIds = [] }) {
               </div>
               <textarea
                 className="csv-textarea"
-                placeholder="Ramesh Kumar,EMP101,654321,Ward 12 (Bank More / बैंक मोड़),Sanitation"
+                placeholder="Ramesh Kumar,EMP101,654321,Ward 12 (Bank More),Sanitation"
                 value={csvText}
                 onChange={e => setCsvText(e.target.value)}
               />
@@ -585,7 +586,7 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
             </div>
             <div>
               <h3>Add New Staff</h3>
-              <p className="modal-sub">नया कर्मचारी जोड़ें</p>
+              <p className="modal-sub">Register new field worker</p>
             </div>
           </div>
           <button className="modal-close-btn" onClick={onClose}>
@@ -625,7 +626,7 @@ function AddStaffModal({ onClose, onAdded, existingIds = [] }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Assigned Ward / आवंटित वार्ड</label>
+                <label className="form-label">Assigned Ward</label>
                 <select className="form-input" value={ward} onChange={e => setWard(e.target.value)}>
                   {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
                 </select>
@@ -840,7 +841,7 @@ function EditStaffModal({ staff, onClose, onUpdated }) {
 
         <div className="modal-body">
           <div className="form-group">
-            <label className="form-label">Full Name / पूरा नाम *</label>
+            <label className="form-label">Full Name *</label>
             <input
               className="form-input"
               value={name}
@@ -850,7 +851,7 @@ function EditStaffModal({ staff, onClose, onUpdated }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Assigned Ward / आवंटित वार्ड</label>
+            <label className="form-label">Assigned Ward</label>
             <select className="form-input" value={ward} onChange={e => setWard(e.target.value)}>
               {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
             </select>
@@ -1300,7 +1301,7 @@ export default function AdminPage() {
   const filteredStaff = useMemo(() => {
     return allStaff.filter(s => {
       const matchSearch = !staffSearch || s.name?.toLowerCase().includes(staffSearch.toLowerCase()) || s.emp_id?.toLowerCase().includes(staffSearch.toLowerCase());
-      const matchWard = selectedWard === 'All Wards' || (s.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard;
+      const matchWard = selectedWard === 'All Wards' || cleanWard(s.ward || 'Ward 12 (Bank More)') === cleanWard(selectedWard);
       const matchActive = showInactiveStaff ? true : (s.active !== false);
       return matchSearch && matchWard && matchActive;
     });
@@ -1308,13 +1309,13 @@ export default function AdminPage() {
 
   // ── Active staff only (used for today's expected attendance & attendance rate) ──
   const activeStaff = useMemo(() => {
-    return allStaff.filter(s => s.active !== false && (selectedWard === 'All Wards' || (s.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard));
+    return allStaff.filter(s => s.active !== false && (selectedWard === 'All Wards' || cleanWard(s.ward || 'Ward 12 (Bank More)') === cleanWard(selectedWard)));
   }, [allStaff, selectedWard]);
 
   // ── Filtered Today records ──
   const filteredTodayRecs = useMemo(() => {
     return todayRecs.filter(r => {
-      const matchWard = selectedWard === 'All Wards' || (r.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard;
+      const matchWard = selectedWard === 'All Wards' || cleanWard(r.ward || 'Ward 12 (Bank More)') === cleanWard(selectedWard);
       return matchWard;
     });
   }, [todayRecs, selectedWard]);
@@ -1323,7 +1324,7 @@ export default function AdminPage() {
   const filteredRecs = useMemo(() => {
     return allRecs.filter(r => {
       const matchName = !recSearch || (r.staff_name || '').toLowerCase().includes(recSearch.toLowerCase()) || (r.emp_id || '').toLowerCase().includes(recSearch.toLowerCase());
-      const matchWard = selectedWard === 'All Wards' || (r.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard;
+      const matchWard = selectedWard === 'All Wards' || cleanWard(r.ward || 'Ward 12 (Bank More)') === cleanWard(selectedWard);
       let matchStatus = true;
       if (recStatus) {
         const h = hrs(r.in_time, r.out_time);
@@ -1338,7 +1339,7 @@ export default function AdminPage() {
   const salaryRows = useMemo(() => {
     const eligibleStaff = allStaff.filter(s => {
       const matchSearch = !staffSearch || s.name?.toLowerCase().includes(staffSearch.toLowerCase()) || s.emp_id?.toLowerCase().includes(staffSearch.toLowerCase());
-      const matchWard = selectedWard === 'All Wards' || (s.ward || 'Ward 12 (Bank More / बैंक मोड़)') === selectedWard;
+      const matchWard = selectedWard === 'All Wards' || cleanWard(s.ward || 'Ward 12 (Bank More)') === cleanWard(selectedWard);
       const hasAttendanceThisMonth = salRecs.some(r => r.staff_user_id === s.user_id || (r.emp_id && r.emp_id === s.emp_id));
       return matchSearch && matchWard && (s.active || hasAttendanceThisMonth);
     });
@@ -1412,30 +1413,11 @@ export default function AdminPage() {
   const presentUserIds = new Set(filteredTodayRecs.map(r => r.staff_user_id));
   const unrecordedStaff = activeStaff.filter(s => !presentUserIds.has(s.user_id));
 
-  // ── Chart Trends Calculation ──
-  const chartData = useMemo(() => {
-    const dateMap = {};
-    salRecs.forEach(r => {
-      if (!r.date) return;
-      if (!dateMap[r.date]) {
-        dateMap[r.date] = {
-          date: r.date.slice(5),
-          present: 0,
-          hours: 0,
-        };
-      }
-      dateMap[r.date].present += 1;
-      if (r.out_time) {
-        dateMap[r.date].hours += Math.round(Math.min(8, hrs(r.in_time, r.out_time)) * 10) / 10;
-      }
-    });
-    return Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).slice(-14);
-  }, [salRecs]);
 
   if (loading) {
     return (
       <div className="admin-page">
-        <Header title="धनबाद नगर निगम — Admin Dashboard" subtitle="Attendance & Salary Management System" />
+        <Header title="Dhanbad Municipal Corporation" subtitle="Administrative Attendance & Payroll Control" />
         <div className="page-loader">
           <div className="page-loader-box">
             <div className="spinner" />
@@ -1453,18 +1435,18 @@ export default function AdminPage() {
   };
 
   const navItems = [
-    { key: 'staff',      label: 'Staff Directory',   sub: 'कर्मचारी सूची',      icon: Users,        badge: filteredStaff.length },
-    { key: 'today',      label: 'Today Live',        sub: 'आज की उपस्थिति',    icon: Clock,        badge: filteredTodayRecs.length, badgeColor: 'green' },
-    { key: 'records',    label: 'Attendance Logs',   sub: 'दैनिक रिकॉर्ड',      icon: ClipboardList },
-    { key: 'salary',     label: 'Salary & Payroll',  sub: 'मासिक वेतन',        icon: BarChart3 },
-    { key: 'exceptions', label: 'Exceptions & Audits', sub: 'सुधार एवं अपवाद', icon: AlertCircle, badge: incompleteShifts.length > 0 ? incompleteShifts.length : undefined, badgeColor: 'amber' },
+    { key: 'staff',      label: 'Staff Directory',   sub: 'Active Personnel',      icon: Users,        badge: filteredStaff.length },
+    { key: 'today',      label: 'Today Live',        sub: 'Live Operations',      icon: Clock,        badge: filteredTodayRecs.length, badgeColor: 'green' },
+    { key: 'records',    label: 'Attendance Logs',   sub: 'Daily Punch Logs',     icon: ClipboardList },
+    { key: 'salary',     label: 'Salary & Payroll',  sub: 'Monthly Disbursal',    icon: BarChart3 },
+    { key: 'exceptions', label: 'Exceptions & Audits', sub: 'Audit Ledger',       icon: AlertCircle, badge: incompleteShifts.length > 0 ? incompleteShifts.length : undefined, badgeColor: 'amber' },
   ];
 
   return (
     <div className="admin-layout">
       <Header
-        title="धनबाद नगर निगम — Admin"
-        subtitle="Attendance & Salary Management"
+        title="Dhanbad Municipal Corporation"
+        subtitle="Administrative Attendance & Payroll Control"
       />
 
       <AnimatePresence>
@@ -1628,15 +1610,20 @@ export default function AdminPage() {
 
               <div className="dashboard-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 {/* Global Ward Filter */}
-                <select
-                  className="select-input"
-                  style={{ minWidth: '160px' }}
-                  value={selectedWard}
-                  onChange={e => setSelectedWard(e.target.value)}
-                >
-                  <option value="All Wards">All Wards / सभी वार्ड</option>
-                  {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
+                <div className="custom-select-wrap">
+                  <Building2 size={14} className="custom-select-icon" />
+                  <select
+                    className="custom-select"
+                    style={{ minWidth: '150px' }}
+                    value={selectedWard}
+                    onChange={e => setSelectedWard(e.target.value)}
+                    aria-label="Filter by Ward"
+                  >
+                    <option value="All Wards">All Wards (DMC)</option>
+                    {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                  <ChevronDown size={14} className="custom-select-chevron" />
+                </div>
 
                 {tab === 'salary' && (
                   <button className="btn btn-outline" onClick={downloadCSV}>
@@ -1736,16 +1723,6 @@ export default function AdminPage() {
               </SpatialCard>
             </motion.div>
 
-            {/* ── Attendance Trends Area Chart ── */}
-            {chartData.length > 1 && (
-              <motion.div variants={fadeUp} className="chart-section">
-                <AttendanceChart
-                  data={chartData}
-                  title="Attendance & Work Hours Trend"
-                  subtitle="Daily active staff and total hours recorded"
-                />
-              </motion.div>
-            )}
 
             {/* ── Tab Panels Content ── */}
             <AnimatePresence mode="wait">
@@ -1779,7 +1756,10 @@ export default function AdminPage() {
                   </div>
 
                   <div className="table-responsive">
-                    <table className="modern-table">
+                    <div className="table-scroll-hint">
+                      <span>← Swipe horizontally to view full table →</span>
+                    </div>
+                    <table className="modern-table desktop-table-view">
                       <thead>
                         <tr>
                           <th>Employee</th>
@@ -1811,7 +1791,7 @@ export default function AdminPage() {
                                     <div className="user-name">
                                       {s.name} {s.active === false && <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600 }}>(Inactive)</span>}
                                     </div>
-                                    <div className="user-meta">{s.department || 'Sanitation'} · {s.ward || 'Ward 12'}</div>
+                                    <div className="user-meta">{s.department || 'Sanitation'} · {cleanWard(s.ward) || 'Ward 12'}</div>
                                   </div>
                                 </div>
                               </td>
@@ -1881,6 +1861,91 @@ export default function AdminPage() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Mobile Staff Cards List (Stitch Mobile Spec — Visible <= 768px) */}
+                  <div className="mobile-staff-cards-list">
+                    {filteredStaff.length === 0 ? (
+                      <div className="empty-state" style={{ padding: '24px 16px' }}>
+                        <Users size={32} className="empty-icon" />
+                        <p>No staff members found matching "{staffSearch}"</p>
+                      </div>
+                    ) : (
+                      filteredStaff.map(s => {
+                        const isPresent = todayRecs.some(r => r.staff_user_id === s.user_id);
+                        return (
+                          <div key={`mob-staff-${s.id}`} className="mob-admin-card" style={s.active === false ? { opacity: 0.75 } : {}}>
+                            <div className="mob-admin-card-header">
+                              <div className="user-cell">
+                                <div className="user-avatar" style={s.active === false ? { background: '#cbd5e1', color: '#475569' } : {}}>
+                                  {getInitials(s.name)}
+                                </div>
+                                <div>
+                                  <div className="user-name">
+                                    {s.name} {s.active === false && <span style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 600 }}>(Inactive)</span>}
+                                  </div>
+                                  <div className="user-meta">{s.department || 'Sanitation'} · {cleanWard(s.ward) || 'Ward 12'}</div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                                <span className="id-badge">{s.emp_id}</span>
+                                {s.active === false ? (
+                                  <span className="status-badge badge-neutral" style={{ color: '#dc2626', borderColor: '#fca5a5' }}>
+                                    Inactive
+                                  </span>
+                                ) : isPresent ? (
+                                  <span className="status-badge badge-success">
+                                    <span className="badge-dot" /> Present Today
+                                  </span>
+                                ) : (
+                                  <span className="status-badge badge-neutral">
+                                    Absent
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mob-admin-actions-bar">
+                              <button
+                                className="btn-icon-neutral mob-admin-action-btn"
+                                onClick={() => setEditingStaff(s)}
+                                title={`Edit profile for ${s.name}`}
+                              >
+                                <Edit3 size={13} />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                className="btn-icon-neutral mob-admin-action-btn"
+                                onClick={() => setResetPinStaff(s)}
+                                title={`Reset login PIN for ${s.name}`}
+                              >
+                                <KeyRound size={13} />
+                                <span>Reset PIN</span>
+                              </button>
+                              {s.active === false ? (
+                                <button
+                                  className="btn-icon-primary mob-admin-action-btn"
+                                  onClick={() => toggleStaffStatus(s.id, s.name, false)}
+                                  title={`Reactivate ${s.name}`}
+                                  style={{ color: '#16a34a', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
+                                >
+                                  <CheckCircle2 size={13} />
+                                  <span>Reactivate</span>
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn-icon-danger mob-admin-action-btn"
+                                  onClick={() => toggleStaffStatus(s.id, s.name, true)}
+                                  title={`Deactivate ${s.name}`}
+                                >
+                                  <Trash2 size={13} />
+                                  <span>Deactivate</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </motion.div>
               )}
 
@@ -1899,7 +1964,10 @@ export default function AdminPage() {
                   </div>
 
                   <div className="table-responsive">
-                    <table className="modern-table">
+                    <div className="table-scroll-hint">
+                      <span>← Swipe horizontally to view full table →</span>
+                    </div>
+                    <table className="modern-table desktop-table-view">
                       <thead>
                         <tr>
                           <th>Employee</th>
@@ -1908,6 +1976,7 @@ export default function AdminPage() {
                           <th>Total Hours</th>
                           <th>Status</th>
                           <th className="text-right">Compensation</th>
+                          <th className="text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1931,7 +2000,7 @@ export default function AdminPage() {
                                   <div className="user-avatar">{(r.staff_name || '?')[0].toUpperCase()}</div>
                                   <div>
                                     <div className="user-name">{r.staff_name}</div>
-                                    <div className="user-meta">{r.emp_id} • {r.ward || 'Ward 12'}</div>
+                                    <div className="user-meta">{r.emp_id} • {cleanWard(r.ward) || 'Ward 12'}</div>
                                   </div>
                                 </div>
                               </td>
@@ -1963,6 +2032,67 @@ export default function AdminPage() {
                     </table>
                   </div>
 
+                  {/* Mobile Today Shift Cards (Stitch Mobile Spec — Visible <= 768px) */}
+                  <div className="mobile-today-cards-list">
+                    {filteredTodayRecs.length === 0 ? (
+                      <div className="empty-state" style={{ padding: '24px 16px' }}>
+                        <Clock size={32} className="empty-icon" />
+                        <p>No check-in records logged yet today for the selected filter.</p>
+                      </div>
+                    ) : (
+                      filteredTodayRecs.map(r => {
+                        const h = hrs(r.in_time, r.out_time);
+                        const st = !r.out_time ? 'On Duty' : h >= 8 ? 'Full Shift' : 'Short Shift';
+                        const badgeCls = !r.out_time ? 'badge-warning' : h >= 8 ? 'badge-success' : 'badge-amber';
+                        return (
+                          <div key={`mob-today-${r.id}`} className="mob-admin-card">
+                            <div className="mob-admin-card-header">
+                              <div className="user-cell">
+                                <div className="user-avatar">{(r.staff_name || '?')[0].toUpperCase()}</div>
+                                <div>
+                                  <div className="user-name">{r.staff_name}</div>
+                                  <div className="user-meta">{r.emp_id} • {cleanWard(r.ward) || 'Ward 12'}</div>
+                                </div>
+                              </div>
+                              <span className={`status-badge ${badgeCls}`}>
+                                <span className="badge-dot" /> {st}
+                              </span>
+                            </div>
+                            <div className="mob-admin-times-row">
+                              <div>
+                                <span className="mob-time-lbl">Check In</span>
+                                <span className="mob-time-val font-mono">{fmtT(r.in_time)}</span>
+                              </div>
+                              <span className="mob-time-arrow">➔</span>
+                              <div>
+                                <span className="mob-time-lbl">Check Out</span>
+                                <span className="mob-time-val font-mono">{fmtT(r.out_time)}</span>
+                              </div>
+                              <div>
+                                <span className="mob-time-lbl">Hours</span>
+                                <span className="mob-time-val">{r.out_time ? `${h.toFixed(1)}h` : 'Live'}</span>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <span className="mob-time-lbl">Earned</span>
+                                <span className="mob-time-val font-semibold text-emerald">{r.out_time ? money(pay(h)) : '—'}</span>
+                              </div>
+                            </div>
+                            <div className="mob-admin-footer-btn-row">
+                              <button
+                                className="btn btn-outline w-full"
+                                style={{ minHeight: '38px', fontSize: '0.78rem', justifyContent: 'center' }}
+                                onClick={() => setRegularizeRec(r)}
+                              >
+                                <Edit3 size={13} />
+                                <span>Regularize Punch</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
                   {/* Absent / Unrecorded Staff Section (Rule 10: Distinguish missing from absent) */}
                   <div className="absent-card">
                     <div className="absent-card-header">
@@ -1992,7 +2122,7 @@ export default function AdminPage() {
                             <div key={s.id} className="absent-chip">
                               <span className="absent-avatar">{getInitials(s.name)}</span>
                               <span className="absent-name">{s.name}</span>
-                              <span className="absent-id">{s.emp_id} • {s.ward || 'Ward 12'}</span>
+                              <span className="absent-id">{s.emp_id} • {cleanWard(s.ward) || 'Ward 12'}</span>
                             </div>
                           ))}
                         </div>
@@ -2007,7 +2137,12 @@ export default function AdminPage() {
                 <motion.div key="records" className="panel-card" variants={tabPanelVariant} initial="hidden" animate="visible" exit="exit">
                   <div className="panel-card-header flex-wrap">
                     <div>
-                      <h3 className="panel-card-title">Attendance Logs</h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h3 className="panel-card-title">Attendance Logs</h3>
+                        <span className="id-badge font-mono" style={{ fontSize: '0.72rem', color: '#475569' }}>
+                          {filteredRecs.length} {filteredRecs.length === 1 ? 'Record' : 'Records'}
+                        </span>
+                      </div>
                       <p className="panel-card-subtitle">Historical check-in/out records with correction tags</p>
                     </div>
                     <div className="filters-row">
@@ -2020,26 +2155,43 @@ export default function AdminPage() {
                           onChange={e => setRecSearch(e.target.value)}
                         />
                       </div>
-                      <select
-                        className="select-input"
-                        value={recMonth}
-                        onChange={e => setRecMonth(e.target.value)}
-                      >
-                        {MONTHS.map(m => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                      </select>
-                      {recsLoading && <RefreshCw size={14} className="spin" style={{ color: '#1d4ed8' }} />}
-                      <select
-                        className="select-input"
-                        value={recStatus}
-                        onChange={e => setRecStatus(e.target.value)}
-                      >
-                        <option value="">All Shifts</option>
-                        <option>Full Shift</option>
-                        <option>Short Shift</option>
-                        <option>On Duty</option>
-                      </select>
+
+                      <div className="filters-dropdowns-group">
+                        <div className="custom-select-wrap">
+                          <Calendar size={14} className="custom-select-icon" />
+                          <select
+                            className="custom-select"
+                            value={recMonth}
+                            onChange={e => setRecMonth(e.target.value)}
+                            aria-label="Filter by month"
+                          >
+                            {MONTHS.map(m => (
+                              <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                          </select>
+                          {recsLoading ? (
+                            <RefreshCw size={12} className="spin custom-select-chevron" style={{ color: '#2563eb' }} />
+                          ) : (
+                            <ChevronDown size={14} className="custom-select-chevron" />
+                          )}
+                        </div>
+
+                        <div className="custom-select-wrap">
+                          <Filter size={14} className="custom-select-icon" />
+                          <select
+                            className="custom-select"
+                            value={recStatus}
+                            onChange={e => setRecStatus(e.target.value)}
+                            aria-label="Filter by shift status"
+                          >
+                            <option value="">All Shifts</option>
+                            <option value="Full Shift">Full Shift (8h+)</option>
+                            <option value="Short Shift">Short Shift (&lt;8h)</option>
+                            <option value="On Duty">On Duty (Open)</option>
+                          </select>
+                          <ChevronDown size={14} className="custom-select-chevron" />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -2051,6 +2203,9 @@ export default function AdminPage() {
                   )}
 
                   <div className="table-responsive">
+                    <div className="table-scroll-hint">
+                      <span>← Swipe horizontally to view full log details →</span>
+                    </div>
                     <table className="modern-table">
                       <thead>
                         <tr>
@@ -2111,7 +2266,7 @@ export default function AdminPage() {
                                   </div>
                                 </div>
                               </td>
-                              <td><span className="id-badge">{r.ward || 'Ward 12'}</span></td>
+                              <td><span className="id-badge">{cleanWard(r.ward) || 'Ward 12'}</span></td>
                               <td className="font-mono">{fmtT(r.in_time)}</td>
                               <td className="font-mono">{fmtT(r.out_time)}</td>
                               <td>{r.out_time ? `${h.toFixed(2)}h` : '—'}</td>
@@ -2151,16 +2306,24 @@ export default function AdminPage() {
                       <p className="panel-card-subtitle">Monthly calculated wages based on verified shifts (₹450/8h rate)</p>
                     </div>
                     <div className="filters-row">
-                      <select
-                        className="select-input"
-                        value={salMonth}
-                        onChange={e => setSalMonth(e.target.value)}
-                      >
-                        {MONTHS.map(m => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                      </select>
-                      {salLoading && <RefreshCw size={14} className="spin" style={{ color: '#1d4ed8' }} />}
+                      <div className="custom-select-wrap">
+                        <Calendar size={14} className="custom-select-icon" />
+                        <select
+                          className="custom-select"
+                          value={salMonth}
+                          onChange={e => setSalMonth(e.target.value)}
+                          aria-label="Payroll Month"
+                        >
+                          {MONTHS.map(m => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                        {salLoading ? (
+                          <RefreshCw size={12} className="spin custom-select-chevron" style={{ color: '#2563eb' }} />
+                        ) : (
+                          <ChevronDown size={14} className="custom-select-chevron" />
+                        )}
+                      </div>
                       <button
                         className={`btn ${isSalLocked ? 'btn-outline' : 'btn-primary'}`}
                         onClick={() => toggleLockMonth(salMonth)}
@@ -2192,25 +2355,63 @@ export default function AdminPage() {
 
                   {/* Summary Bar */}
                   <div className="salary-summary-grid">
-                    <div className="sal-stat-item">
-                      <span className="sal-stat-label">Active Staff</span>
-                      <span className="sal-stat-val"><AnimatedNumber value={filteredStaff.length} /></span>
+                    <div className="sal-stat-card">
+                      <div className="sal-stat-header">
+                        <span className="sal-stat-label">Active Staff</span>
+                        <div className="sal-stat-icon icon-navy">
+                          <Users size={15} />
+                        </div>
+                      </div>
+                      <div className="sal-stat-val">
+                        <AnimatedNumber value={filteredStaff.length} />
+                      </div>
+                      <span className="sal-stat-sub">Enrolled for payroll</span>
                     </div>
-                    <div className="sal-stat-item">
-                      <span className="sal-stat-label">Full Shifts (8h)</span>
-                      <span className="sal-stat-val"><AnimatedNumber value={salTotF} /></span>
+
+                    <div className="sal-stat-card">
+                      <div className="sal-stat-header">
+                        <span className="sal-stat-label">Full Shifts (8h)</span>
+                        <div className="sal-stat-icon icon-emerald">
+                          <CheckCircle2 size={15} />
+                        </div>
+                      </div>
+                      <div className="sal-stat-val">
+                        <AnimatedNumber value={salTotF} />
+                      </div>
+                      <span className="sal-stat-sub">Rule 14 verified</span>
                     </div>
-                    <div className="sal-stat-item">
-                      <span className="sal-stat-label">Total Hours</span>
-                      <span className="sal-stat-val"><AnimatedNumber value={salTotH} suffix="h" decimals={1} /></span>
+
+                    <div className="sal-stat-card">
+                      <div className="sal-stat-header">
+                        <span className="sal-stat-label">Total Hours</span>
+                        <div className="sal-stat-icon icon-amber">
+                          <Clock size={15} />
+                        </div>
+                      </div>
+                      <div className="sal-stat-val">
+                        <AnimatedNumber value={salTotH} suffix="h" decimals={1} />
+                      </div>
+                      <span className="sal-stat-sub">Recorded work hours</span>
                     </div>
-                    <div className="sal-stat-item highlight">
-                      <span className="sal-stat-label">Total Payroll</span>
-                      <span className="sal-stat-val"><AnimatedNumber value={salTotPay} prefix="₹" decimals={0} /></span>
+
+                    <div className="sal-stat-card highlight">
+                      <div className="sal-stat-header">
+                        <span className="sal-stat-label">Total Payroll</span>
+                        <div className="sal-stat-icon icon-primary">
+                          <IndianRupee size={15} />
+                        </div>
+                      </div>
+                      <div className="sal-stat-val">
+                        <AnimatedNumber value={salTotPay} prefix="₹" decimals={0} />
+                      </div>
+                      <span className="sal-stat-sub">Net payable (DMC)</span>
                     </div>
                   </div>
 
                   <div className="table-responsive">
+                    <div className="table-scroll-hint">
+                      <span>← Swipe horizontally to view full payroll table →</span>
+                    </div>
                     <table className="modern-table">
                       <thead>
                         <tr>
@@ -2256,7 +2457,7 @@ export default function AdminPage() {
                               </div>
                             </td>
                             <td><span className="id-badge">{s.emp_id}</span></td>
-                            <td><span className="id-badge">{s.ward || 'Ward 12'}</span></td>
+                            <td><span className="id-badge">{cleanWard(s.ward) || 'Ward 12'}</span></td>
                             <td><span className="font-semibold text-emerald">{full}</span></td>
                             <td><span className="text-muted">{sht}</span></td>
                             <td>{totalH.toFixed(2)}h</td>
@@ -2320,7 +2521,7 @@ export default function AdminPage() {
                                     <div className="user-avatar">{(r.staff_name || '?')[0].toUpperCase()}</div>
                                     <div>
                                       <div className="user-name">{r.staff_name}</div>
-                                      <div className="user-meta">{r.emp_id} • {r.ward || 'Ward 12'}</div>
+                                      <div className="user-meta">{r.emp_id} • {cleanWard(r.ward) || 'Ward 12'}</div>
                                     </div>
                                   </div>
                                 </td>
@@ -2365,30 +2566,30 @@ export default function AdminPage() {
                         <table className="modern-table" style={{ fontSize: '0.82rem' }}>
                           <thead>
                             <tr>
-                              <th>Timestamp</th>
-                              <th>Employee</th>
-                              <th>Correction Type</th>
-                              <th>Punches (Before → After)</th>
-                              <th>Mandatory Reason</th>
-                              <th>Approver</th>
+                              <th style={{ width: '170px', whiteSpace: 'nowrap' }}>Timestamp</th>
+                              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>Employee</th>
+                              <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>Correction Type</th>
+                              <th style={{ minWidth: '220px', whiteSpace: 'nowrap' }}>Punches (Before → After)</th>
+                              <th style={{ minWidth: '200px' }}>Mandatory Reason</th>
+                              <th style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>Approver</th>
                             </tr>
                           </thead>
                           <tbody>
                             {corrections.map(c => (
                               <tr key={c.id}>
-                                <td className="font-mono" style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                                  {new Date(c.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })}
+                                <td className="font-mono" style={{ fontSize: '0.76rem', color: '#475569', whiteSpace: 'nowrap' }}>
+                                  {fmtAuditTimestamp(c.created_at)}
                                 </td>
-                                <td>
-                                  <strong>{c.staff_name}</strong>
-                                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{c.emp_id}</div>
+                                <td style={{ whiteSpace: 'nowrap' }}>
+                                  <strong style={{ color: '#0f172a' }}>{c.staff_name}</strong>
+                                  <div className="font-mono" style={{ fontSize: '0.72rem', color: '#64748b' }}>{c.emp_id}</div>
                                 </td>
-                                <td>
-                                  <span className="status-badge badge-purple" style={{ fontSize: '0.72rem' }}>
+                                <td style={{ whiteSpace: 'nowrap' }}>
+                                  <span className="status-badge badge-purple" style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                                     {c.correction_type}
                                   </span>
                                 </td>
-                                <td className="font-mono" style={{ fontSize: '0.75rem' }}>
+                                <td className="font-mono" style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                                   {fmtT(c.old_in_time)} – {fmtT(c.old_out_time)}
                                   <span style={{ margin: '0 6px', color: '#16a34a', fontWeight: 700 }}>→</span>
                                   {fmtT(c.new_in_time)} – {fmtT(c.new_out_time)}
@@ -2396,8 +2597,8 @@ export default function AdminPage() {
                                 <td>
                                   <span style={{ color: '#334155' }}>"{c.reason}"</span>
                                 </td>
-                                <td>
-                                  <span className="id-badge">{c.corrected_by || 'Admin'}</span>
+                                <td style={{ whiteSpace: 'nowrap' }}>
+                                  <span className="id-badge font-mono">{c.corrected_by || 'Admin'}</span>
                                 </td>
                               </tr>
                             ))}

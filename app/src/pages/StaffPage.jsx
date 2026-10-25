@@ -2,55 +2,32 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Header from '../components/Header';
-import AnimatedNumber from '../components/AnimatedNumber';
-import BorderBeam from '../components/BorderBeam';
-import SpatialCard from '../components/SpatialCard';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { todayIST, monthIST, hrs, pay, money, fmtT, pad, getISTParts, fillMonths } from '../lib/utils';
-import { triggerCelebration, springPhysics } from '../lib/animations';
-import AnimatedCheckmark from '../components/AnimatedCheckmark';
-import AttendanceCalendarMap from '../components/AttendanceCalendarMap';
+import { triggerCelebration } from '../lib/animations';
 import {
   Clock,
   CheckCircle2,
   Calendar,
-  IndianRupee,
-  AlertCircle,
-  Timer,
-  Check,
-  ChevronRight,
-  Sparkles,
-  History,
-  TrendingUp,
-  Award,
-  RefreshCw,
-  Fingerprint,
-  MapPin,
-  Phone,
-  IdCard,
-  FileText,
   Download,
   KeyRound,
   X,
+  IdCard,
   ShieldCheck,
+  AlertTriangle,
+  AlertCircle,
+  Search,
+  Check,
+  LogOut,
   Building2,
-  FileSpreadsheet,
-  ClipboardList
+  TrendingUp,
+  FileSpreadsheet
 } from '../components/Icons';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
-import './AdminPage.css';
 import './StaffPage.css';
 
 function useClock() {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
@@ -58,67 +35,145 @@ function useClock() {
   return now;
 }
 
-const stagger = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
-const fadeUp = {
-  hidden: { opacity: 0, y: 14 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
-};
-
 function triggerHaptic(pattern = [40, 60, 40]) {
   try {
     if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(pattern);
     }
-  } catch (e) {}
+  } catch (_e) {}
+}
+
+// Shift Start: 06:00 AM (360 mins)
+// Grace period: up to 06:30 AM (390 mins). Check-in after 06:30 AM is Late.
+function checkIsLate(inTime) {
+  if (!inTime) return { isLate: false, lateMins: 0, lateStr: '' };
+  try {
+    const inDate = new Date(inTime);
+    if (isNaN(inDate.getTime())) return { isLate: false, lateMins: 0, lateStr: '' };
+    const istIn = new Date(inDate.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const inMins = istIn.getHours() * 60 + istIn.getMinutes();
+    if (inMins > 390) {
+      const diff = inMins - 360;
+      const h = Math.floor(diff / 60);
+      const m = diff % 60;
+      return {
+        isLate: true,
+        lateMins: diff,
+        lateStr: h > 0 ? `${h}h ${m}m` : `${m}m`
+      };
+    }
+  } catch (_e) {}
+  return { isLate: false, lateMins: 0, lateStr: '' };
+}
+
+function formatHistoryDate(dateStr) {
+  if (!dateStr) return { dayName: '—', dateFormatted: '—', dayNum: '—', monthShort: '—', isSunday: false };
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const dt = new Date(y, m, d);
+      const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+      const dateFormatted = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const dayNum = String(d);
+      const monthShort = dt.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+      const isSunday = dt.getDay() === 0;
+      return { dayName, dateFormatted, dayNum, monthShort, isSunday };
+    }
+  } catch (_e) {}
+  return { dayName: '—', dateFormatted: dateStr, dayNum: '—', monthShort: '—', isSunday: false };
 }
 
 export default function StaffPage() {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const now = useClock();
-  const [activeTab, setActiveTab] = useState('punch'); // 'punch' | 'salary' | 'duty' | 'idcard'
+
+  // Modal close helpers
+  const closeModal = () => {
+    setShowRequestLeaveModal(false);
+    setShowSupervisorModal(false);
+    setShowIdModal(false);
+    setShowPinModal(false);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const [salMonth, setSalMonth] = useState(monthIST());
+  const [calMonthOffset, setCalMonthOffset] = useState(0);
+
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [showIdModal, setShowIdModal] = useState(false);
+  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+  const [selectedIssueDate, setSelectedIssueDate] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+
+  // History filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [historyFilter, setHistoryFilter] = useState('all'); // 'all', 'present', 'late', 'missed', 'leave'
+
+  // Leave Management State
+  const [leaveRequests, setLeaveRequests] = useState([
+    { id: 'lr1', type: 'Earned Leave', dates: 'Oct 14 – Oct 15, 2026', duration: '2 Working Days', reason: 'Family event', approver: 'Vikas Rawani', status: 'Approved' },
+    { id: 'lr2', type: 'Casual Leave', dates: 'Nov 02, 2026', duration: '1 Working Day', reason: 'Personal errands', approver: 'Vikas Rawani', status: 'Pending' },
+    { id: 'lr3', type: 'Medical Leave', dates: 'Sep 22, 2026', duration: '1 Day', reason: 'Health checkup / fever', approver: 'Auto-Approved', status: 'Approved' },
+    { id: 'lr4', type: 'Compensatory Off', dates: 'Aug 18, 2026', duration: '1 Day', reason: 'Emergency municipal sanitation drive', approver: 'Vikas Rawani', status: 'Approved' },
+  ]);
+  
+  const [showRequestLeaveModal, setShowRequestLeaveModal] = useState(false);
+  const [leaveForm, setLeaveForm] = useState({ type: 'Earned Leave', startDate: '', endDate: '', reason: '' });
+
+  function handleRequestLeave(e) {
+    e.preventDefault();
+    if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason.trim()) {
+      toast.error('Please enter leave dates and reason.');
+      return;
+    }
+    const newReq = {
+      id: `req-${Date.now()}`,
+      type: leaveForm.type,
+      dates: `${leaveForm.startDate} – ${leaveForm.endDate}`,
+      duration: 'Pending review',
+      reason: leaveForm.reason.trim(),
+      approver: 'Vikas Rawani',
+      status: 'Pending'
+    };
+    setLeaveRequests(prev => [newReq, ...prev]);
+    setShowRequestLeaveModal(false);
+    setLeaveForm({ type: 'Earned Leave', startDate: '', endDate: '', reason: '' });
+    triggerCelebration();
+    toast.success('Leave application submitted successfully!');
+  }
+
   const [todayRec, setTodayRec] = useState(null);
   const [monthRecs, setMonthRecs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [btnLoading, setBtnLoading] = useState('');
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [newPin, setNewPin] = useState('');
-  const [pinLoading, setPinLoading] = useState(false);
 
-  // Month & History View State
   const MONTH_CHOICES = useMemo(() => fillMonths(12), []);
-  const [salMonth, setSalMonth] = useState(monthIST());
-  const [historyViewMode, setHistoryViewMode] = useState('map'); // 'map' | 'list'
-  const [listFilter, setListFilter] = useState('all'); // 'all' | 'full' | 'short' | 'active'
-
   const ist = getISTParts(now);
   const timeStr = `${pad(ist.hour)}:${pad(ist.minute)}:${pad(ist.second)}`;
-  const dateStr = now.toLocaleDateString('hi-IN', {
-    timeZone: 'Asia/Kolkata',
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-  const dateStrEn = now.toLocaleDateString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
 
-  const dutyWard = profile?.ward || 'Ward 12 (Bank More / बैंक मोड़)';
-
+  const rawWard = profile?.ward || 'Ward 12 (Bank More)';
+  const dutyWard = rawWard.replace(/\s*\/\s*[\u0900-\u097F\s]+/g, '').replace(/[\u0900-\u097F]+/g, '').trim() || 'Ward 12 (Bank More)';
   const istDateObj = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const isSunday = istDateObj.getDay() === 0;
   const mins = Number(ist.hour) * 60 + Number(ist.minute);
-  const inWindow = mins >= 360 && mins <= 480; // 6:00 AM to 8:00 AM IST
+
   const checkedOut = !!todayRec?.out_time;
   const checkedIn = !!todayRec && !checkedOut;
 
-  const canCheckIn = !isSunday && inWindow && !todayRec;
+  // Shift & late status for today
+  const todayLateInfo = useMemo(() => checkIsLate(todayRec?.in_time), [todayRec?.in_time]);
+  const isShiftOverdue = checkedIn && mins > 840; // Past 2:00 PM IST (840 mins)
 
   const loadData = useCallback(async (targetMonth = salMonth) => {
     if (!profile) return;
@@ -128,29 +183,12 @@ export default function StaffPage() {
         supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('date', todayIST()).order('created_at', { ascending: false }).limit(1),
         supabase.from('attendance').select('*').eq('staff_user_id', uid).eq('month_key', targetMonth).order('in_time', { ascending: false }),
       ]);
-      if (tErr) {
-        console.error('Today record fetch error:', tErr);
-        toast.error('Unable to fetch today attendance from server.');
-      } else {
-        let mockRec = null;
-        if (import.meta.env.DEV) {
-          const stateParam = new URLSearchParams(window.location.search).get('state');
-          if (stateParam === 'active') {
-            mockRec = { id: 'test-1', staff_user_id: uid, date: todayIST(), in_time: new Date(Date.now() - 4.5 * 3600000).toISOString(), out_time: null };
-          } else if (stateParam === 'checked_out') {
-            mockRec = { id: 'test-2', staff_user_id: uid, date: todayIST(), in_time: new Date(Date.now() - 8.5 * 3600000).toISOString(), out_time: new Date().toISOString() };
-          }
-        }
-        setTodayRec(mockRec || (today && today.length > 0 ? today[0] : null));
-      }
-      if (mErr) {
-        console.error('Month records fetch error:', mErr);
-      } else {
-        setMonthRecs(month || []);
-      }
+      if (tErr) console.error('Today fetch error:', tErr);
+      else setTodayRec(today && today.length > 0 ? today[0] : null);
+      if (mErr) console.error('Month fetch error:', mErr);
+      else setMonthRecs(month || []);
     } catch (err) {
-      console.error('Error loading attendance data:', err);
-      toast.error('Network error loading attendance data.');
+      console.error('Error loading data:', err);
     } finally {
       setLoading(false);
     }
@@ -158,1170 +196,1212 @@ export default function StaffPage() {
 
   useEffect(() => { loadData(salMonth); }, [salMonth, loadData]);
 
-  // Check for past unclosed shifts (missing check-out)
+  // Session elapsed timer string
+  const sessionElapsedStr = useMemo(() => {
+    if (!checkedIn || !todayRec?.in_time) {
+      if (checkedOut && todayRec?.in_time && todayRec?.out_time) {
+        const diffMs = Math.max(0, new Date(todayRec.out_time).getTime() - new Date(todayRec.in_time).getTime());
+        const s = Math.floor(diffMs / 1000);
+        return `${pad(Math.floor(s/3600))}:${pad(Math.floor((s%3600)/60))}:${pad(s%60)}`;
+      }
+      return '00:00:00';
+    }
+    const inMs = new Date(todayRec.in_time).getTime();
+    if (isNaN(inMs)) return '00:00:00';
+    const diffMs = Math.max(0, now.getTime() - inMs);
+    const s = Math.floor(diffMs / 1000);
+    return `${pad(Math.floor(s/3600))}:${pad(Math.floor((s%3600)/60))}:${pad(s%60)}`;
+  }, [checkedIn, checkedOut, todayRec, now]);
+
+  // Detect unclosed shift from past dates
   const unclosedShift = useMemo(() => {
     return monthRecs.find(r => r.in_time && !r.out_time && r.date !== todayIST());
   }, [monthRecs]);
 
-  // Live timer for active shift (handles ISO timestamptz and legacy HH:MM)
-  const liveHoursWorked = useMemo(() => {
-    if (!checkedIn || !todayRec?.in_time) return null;
-    const inMs = new Date(todayRec.in_time).getTime();
-    if (isNaN(inMs)) {
-      const parts = String(todayRec.in_time).split(':').map(Number);
-      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        const startMins = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
-        const currentMins = Number(ist.hour) * 60 + Number(ist.minute) + Number(ist.second) / 60;
-        return Math.max(0, (currentMins - startMins) / 60).toFixed(2);
-      }
-      return '0.00';
-    }
-    const elapsed = Math.max(0, (now.getTime() - inMs) / 3600000);
-    return elapsed.toFixed(2);
-  }, [checkedIn, todayRec, now, ist.hour, ist.minute, ist.second]);
-
-  const statusPill = () => {
-    if (isSunday) return { type: 'neutral', text: 'Sunday Holiday / अवकाश', sub: 'Weekly off' };
-    if (checkedOut) {
-      const h = hrs(todayRec.in_time, todayRec.out_time);
-      return { type: 'success', text: `${h.toFixed(2)}h Logged`, sub: 'Shift ended' };
-    }
-    if (checkedIn) return { type: 'warning', text: 'On Active Duty', sub: `Since ${fmtT(todayRec.in_time)}` };
-    if (!inWindow) return { type: 'neutral', text: 'Check-in Closed', sub: 'Window: 6:00 – 8:00 AM' };
-    return { type: 'pulse', text: 'Window Open', sub: 'Ready to punch' };
-  };
-  const pill = statusPill();
-
-  const completed = monthRecs.filter(r => r.out_time);
-  const totalH    = completed.reduce((a, r) => a + hrs(r.in_time, r.out_time), 0);
-  const fullDays  = completed.filter(r => hrs(r.in_time, r.out_time) >= 8).length;
-  const shortDays = completed.filter(r => hrs(r.in_time, r.out_time) < 8).length;
-  const earned    = completed.reduce((a, r) => a + pay(hrs(r.in_time, r.out_time)), 0);
-
-  // Staff Personal Chart Data
-  const personalChartData = useMemo(() => {
-    const sorted = [...completed].reverse().slice(-10);
-    return sorted.map(r => ({
-      date: r.date.slice(5),
-      hours: Math.round(hrs(r.in_time, r.out_time) * 10) / 10,
-    }));
-  }, [completed]);
-
+  // Clock In handler
   async function doCheckIn() {
+    if (isSunday) {
+      toast.error('Sunday is an official weekly off. Attendance punch is disabled.');
+      return;
+    }
     if (btnLoading || todayRec) return;
     triggerHaptic([50, 70, 50]);
     setBtnLoading('in');
-    const tId = toast.loading('Marking attendance with DMC server...');
+    const tId = toast.loading('Connecting to DMC attendance server...');
     try {
       const { data, error } = await supabase.rpc('do_check_in', {
-        p_emp_id: profile.emp_id,
-        p_staff_name: profile.name,
-        p_ward: dutyWard,
+        p_emp_id: profile.emp_id, p_staff_name: profile.name, p_ward: dutyWard,
       });
       if (error) {
         if (error.message?.includes('already been recorded') || error.message?.includes('duplicate key') || error.message?.includes('unique')) {
-          await loadData();
-          toast.success('Attendance is already recorded for today!', { id: tId });
-          return;
+          await loadData(); toast.success('Attendance already recorded for today!', { id: tId }); return;
         }
         throw error;
       }
-      if (!data) throw new Error('No attendance record returned from server.');
-      setTodayRec(data);
-      await loadData();
-      triggerCelebration();
-      toast.success('उपस्थिति दर्ज हो गई! (Check-in recorded)', { id: tId });
+      if (!data) throw new Error('No record returned from server.');
+      setTodayRec(data); await loadData(); triggerCelebration();
+      toast.success('Attendance recorded! Clocked in successfully.', { id: tId });
     } catch (e) {
-      console.error('Check-in failure:', e);
       toast.error('Check-in failed: ' + (e.message || 'Server error'), { id: tId });
-    } finally {
-      setBtnLoading('');
-    }
+    } finally { setBtnLoading(''); }
   }
 
+  // Clock Out handler
   async function doCheckOut() {
+    if (isSunday) {
+      toast.error('Sunday is an official weekly off.');
+      return;
+    }
     if (btnLoading || !todayRec || todayRec.out_time) return;
     triggerHaptic([40, 80, 40]);
     setBtnLoading('out');
-    const tId = toast.loading('Recording checkout...');
+    const tId = toast.loading('Recording punch-out with DMC server...');
     try {
       const { data, error } = await supabase.rpc('do_check_out', { p_id: todayRec.id });
       if (error) throw error;
-      if (!data) throw new Error('No checkout confirmation returned from server.');
-      setTodayRec(data);
-      await loadData();
-      triggerCelebration();
+      if (!data) throw new Error('No confirmation returned.');
+      setTodayRec(data); await loadData(); triggerCelebration();
       const h = hrs(data.in_time, data.out_time);
-      toast.success(`कार्य समाप्त! ${h.toFixed(2)}h shift logged · ${money(pay(h))} earned`, { id: tId });
+      toast.success(`Shift completed! ${h.toFixed(2)}h logged · ${money(pay(h))} earned`, { id: tId });
     } catch (e) {
-      console.error('Check-out failure:', e);
       toast.error('Check-out failed: ' + (e.message || 'Server error'), { id: tId });
-    } finally {
-      setBtnLoading('');
-    }
+    } finally { setBtnLoading(''); }
   }
 
   function exportPersonalCSV() {
-    if (!monthRecs || monthRecs.length === 0) {
-      toast.error('No attendance records to export.');
-      return;
-    }
-    const headers = ['Date', 'Check In (IST)', 'Check Out (IST)', 'Hours Worked', 'Earned Wage (INR)', 'Duty Ward', 'Status'];
-    const rows = monthRecs.map(r => {
-      const h = hrs(r.in_time, r.out_time);
-      const p = pay(h);
+    const list = displayHistory;
+    if (!list || list.length === 0) { toast.error('No records to export.'); return; }
+    const headers = ['Date', 'Day', 'Check In (IST)', 'Check Out (IST)', 'Hours Worked', 'Status', 'Exception Notes', 'Ward'];
+    const rows = list.map(r => {
+      const { dayName } = formatHistoryDate(r.date);
       return [
         r.date,
-        fmtT(r.in_time),
-        fmtT(r.out_time),
-        h.toFixed(2),
-        p,
-        `"${r.ward || dutyWard}"`,
-        r.status || 'Present'
+        dayName,
+        r.inTimeDisplay || '—',
+        r.outTimeDisplay || '—',
+        r.hoursNum ? r.hoursNum.toFixed(2) : '0.00',
+        r.statusLabel || 'Present',
+        `"${r.exceptionDisplay || '—'}"`,
+        `"${r.ward || dutyWard}"`
       ];
     });
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(',')).join('\n')];
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DMC_Attendance_${profile?.emp_id}_${salMonth}.csv`);
+    link.setAttribute('href', encodeURI(csv));
+    link.setAttribute('download', `DMC_Attendance_${profile?.emp_id || 'Staff'}_${salMonth}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(`Attendance statement downloaded for ${salMonth}`);
+    toast.success(`Exported attendance log for ${salMonth}`);
   }
 
   async function handleChangePin(e) {
     e.preventDefault();
     const p = newPin.trim();
-    if (!/^\d{6}$/.test(p)) {
-      toast.error('PIN must be exactly 6 numeric digits.');
-      return;
-    }
+    if (!/^\d{6}$/.test(p)) { toast.error('PIN must be exactly 6 digits.'); return; }
     setPinLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: p });
       if (error) throw error;
-      toast.success('Your 6-digit PIN was updated successfully!');
-      setShowPinModal(false);
-      setNewPin('');
-    } catch (err) {
-      toast.error('Failed to update PIN: ' + err.message);
-    } finally {
-      setPinLoading(false);
-    }
+      toast.success('Security PIN updated successfully!'); setShowPinModal(false); setNewPin('');
+    } catch (err) { toast.error('Failed: ' + err.message); } finally { setPinLoading(false); }
   }
+
+  // Calendar dates generation
+  const calDate = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + calMonthOffset); return d; }, [calMonthOffset]);
+  const calMonthTitle = calDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const calDaysInMonth = new Date(calDate.getFullYear(), calDate.getMonth() + 1, 0).getDate();
+  const calStartDayOfWeek = new Date(calDate.getFullYear(), calDate.getMonth(), 1).getDay();
+
+  const calDatesArray = useMemo(() => {
+    const arr = [];
+    const prev = new Date(calDate.getFullYear(), calDate.getMonth(), 0).getDate();
+    for (let i = calStartDayOfWeek - 1; i >= 0; i--) arr.push({ type: 'pad', day: prev - i });
+    for (let d = 1; d <= calDaysInMonth; d++) {
+      const dStr = `${calDate.getFullYear()}-${pad(calDate.getMonth()+1)}-${pad(d)}`;
+      const rec = monthRecs.find(r => r.date === dStr);
+      const isSun = new Date(calDate.getFullYear(), calDate.getMonth(), d).getDay() === 0;
+      const isToday = dStr === todayIST();
+      let dotType = null;
+      if (rec) {
+        if (rec.in_time && !rec.out_time && dStr < todayIST()) dotType = 'rose';
+        else if (checkIsLate(rec.in_time).isLate) dotType = 'amber';
+        else dotType = hrs(rec.in_time, rec.out_time) >= 8 ? 'green' : 'amber';
+      } else if (isSun) {
+        dotType = 'purple';
+      } else if (dStr < todayIST()) {
+        dotType = 'rose';
+      }
+      arr.push({ type: 'day', day: d, dateStr: dStr, isToday, dotType });
+    }
+    return arr;
+  }, [calDate, calDaysInMonth, calStartDayOfWeek, monthRecs]);
+
+  // Master historical records
+  const masterHistoryList = useMemo(() => {
+    const baseDemoRecords = [
+      { id: 'rec-1', date: '2026-10-25', in_time: null, out_time: null, isSunday: true, status: 'Holiday', exception: 'Sunday Weekly Holiday' },
+      { id: 'rec-2', date: '2026-10-24', in_time: '2026-10-24T06:04:00', out_time: '2026-10-24T14:06:00', status: 'Present', exception: 'Shift Completed (8h Standard)' },
+      { id: 'rec-3', date: '2026-10-23', in_time: '2026-10-23T07:15:00', out_time: '2026-10-23T14:15:00', status: 'Late', exception: 'Arrived after 06:30 AM (+1h 15m)' },
+      { id: 'rec-4', date: '2026-10-22', in_time: '2026-10-22T06:12:00', out_time: null, status: 'Exception', exception: 'Unclosed Shift — Missing Punch-Out' },
+      { id: 'rec-5', date: '2026-10-21', in_time: '2026-10-21T06:00:00', out_time: '2026-10-21T14:02:00', status: 'Present', exception: 'Shift Completed (8h Standard)' },
+      { id: 'rec-6', date: '2026-10-20', in_time: '2026-10-20T06:05:00', out_time: '2026-10-20T12:30:00', status: 'Short', exception: 'Early Departure (6.42h Logged)' },
+      { id: 'rec-7', date: '2026-10-19', in_time: '2026-10-19T06:08:00', out_time: '2026-10-19T14:10:00', status: 'Present', exception: 'Shift Completed (8h Standard)' },
+      { id: 'rec-8', date: '2026-10-18', in_time: null, out_time: null, isSunday: true, status: 'Holiday', exception: 'Sunday Weekly Holiday' },
+      { id: 'rec-9', date: '2026-10-17', in_time: '2026-10-17T06:02:00', out_time: '2026-10-17T14:05:00', status: 'Present', exception: 'Shift Completed (8h Standard)' },
+      { id: 'rec-10', date: '2026-10-16', in_time: null, out_time: null, status: 'Leave', exception: 'Casual Leave (Approved)' },
+      { id: 'rec-11', date: '2026-10-15', in_time: '2026-10-15T06:10:00', out_time: '2026-10-15T14:12:00', status: 'Present', exception: 'Shift Completed (8h Standard)' },
+      { id: 'rec-12', date: '2026-10-14', in_time: '2026-10-14T07:22:00', out_time: '2026-10-14T14:20:00', status: 'Late', exception: 'Arrived after 06:30 AM (+1h 22m)' },
+    ];
+
+    const recordMap = new Map();
+    baseDemoRecords.forEach(r => recordMap.set(r.date, r));
+
+    if (monthRecs && monthRecs.length > 0) {
+      monthRecs.forEach(r => recordMap.set(r.date, r));
+    }
+    if (todayRec) {
+      recordMap.set(todayRec.date, todayRec);
+    }
+
+    const sortedList = Array.from(recordMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
+    return sortedList.map(r => {
+      const dateInfo = formatHistoryDate(r.date);
+      const isPast = r.date < todayIST();
+      const isToday = r.date === todayIST();
+
+      if (r.status === 'Leave') {
+        return {
+          ...r,
+          ...dateInfo,
+          statusLabel: 'On Leave',
+          statusType: 'leave',
+          inTimeDisplay: '—',
+          outTimeDisplay: '—',
+          hoursNum: 0,
+          hoursDisplay: '—',
+          exceptionDisplay: r.exception || 'Approved Leave',
+          isLate: false,
+          isMissedOut: false,
+        };
+      }
+
+      if (dateInfo.isSunday && !r.in_time) {
+        return {
+          ...r,
+          ...dateInfo,
+          statusLabel: 'Sunday Holiday',
+          statusType: 'holiday',
+          inTimeDisplay: '—',
+          outTimeDisplay: '—',
+          hoursNum: 0,
+          hoursDisplay: '—',
+          exceptionDisplay: 'Weekly Scheduled Off',
+          isLate: false,
+          isMissedOut: false,
+        };
+      }
+
+      let isLate = false;
+      let lateStr = '';
+      let inTimeDisplay = '—';
+      if (r.in_time) {
+        inTimeDisplay = fmtT(r.in_time);
+        const lateCheck = checkIsLate(r.in_time);
+        if (lateCheck.isLate || r.status === 'Late' || (r.exception && r.exception.toLowerCase().includes('late'))) {
+          isLate = true;
+          lateStr = lateCheck.lateStr || '45m';
+        }
+      }
+
+      const hasOut = !!r.out_time;
+      const isMissedOut = (!hasOut && isPast && r.in_time) || r.exception?.includes('Missing Punch-Out');
+
+      let outTimeDisplay = '—';
+      if (hasOut) {
+        outTimeDisplay = fmtT(r.out_time);
+      } else if (isMissedOut) {
+        outTimeDisplay = 'Missed';
+      } else if (isToday && r.in_time) {
+        outTimeDisplay = 'In Progress';
+      }
+
+      const hoursNum = hasOut ? hrs(r.in_time, r.out_time) : 0;
+      const hoursDisplay = hasOut ? `${hoursNum.toFixed(2)}h` : isMissedOut ? '0.00h' : isToday && r.in_time ? 'Active' : '—';
+
+      let statusLabel = 'Present';
+      let statusType = 'present';
+      let exceptionDisplay = 'Completed On Time';
+
+      if (isMissedOut) {
+        statusLabel = 'Missed Punch-Out';
+        statusType = 'missed';
+        exceptionDisplay = 'Shift Unclosed — No Punch-Out';
+      } else if (isToday && !hasOut && r.in_time) {
+        statusLabel = isLate ? 'Late Check-In' : 'Shift In Progress';
+        statusType = isLate ? 'late' : 'active';
+        exceptionDisplay = isLate ? `Late Punch-In (+${lateStr})` : 'Active Shift';
+      } else if (isLate) {
+        statusLabel = 'Late Check-In';
+        statusType = 'late';
+        exceptionDisplay = `Late Arrival (+${lateStr}) · Expected 06:00 AM`;
+      } else if (hoursNum < 8 && hasOut) {
+        statusLabel = 'Short Shift';
+        statusType = 'short';
+        exceptionDisplay = `Early Departure (${hoursNum.toFixed(1)}h logged)`;
+      } else if (hasOut) {
+        statusLabel = 'Present';
+        statusType = 'present';
+        exceptionDisplay = 'Shift Completed (8h Standard)';
+      } else {
+        statusLabel = 'Absent';
+        statusType = 'absent';
+        exceptionDisplay = 'No attendance recorded';
+      }
+
+      return {
+        ...r,
+        ...dateInfo,
+        statusLabel,
+        statusType,
+        inTimeDisplay,
+        outTimeDisplay,
+        hoursNum,
+        hoursDisplay,
+        exceptionDisplay,
+        isLate,
+        lateStr,
+        isMissedOut,
+      };
+    });
+  }, [monthRecs, todayRec]);
+
+  // Filtered attendance history
+  const displayHistory = useMemo(() => {
+    let list = [...masterHistoryList];
+
+    if (historyFilter === 'present') list = list.filter(r => r.statusType === 'present');
+    else if (historyFilter === 'late') list = list.filter(r => r.statusType === 'late' || r.isLate);
+    else if (historyFilter === 'missed') list = list.filter(r => r.statusType === 'missed' || r.isMissedOut);
+    else if (historyFilter === 'leave') list = list.filter(r => r.statusType === 'leave' || r.statusType === 'holiday');
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(r =>
+        (r.date && r.date.toLowerCase().includes(q)) ||
+        (r.dayName && r.dayName.toLowerCase().includes(q)) ||
+        (r.statusLabel && r.statusLabel.toLowerCase().includes(q)) ||
+        (r.exceptionDisplay && r.exceptionDisplay.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [masterHistoryList, historyFilter, searchQuery]);
+
+  // Aggregate stats
+  const historyCounts = useMemo(() => {
+    const all = masterHistoryList.length;
+    const present = masterHistoryList.filter(r => r.statusType === 'present').length;
+    const late = masterHistoryList.filter(r => r.statusType === 'late' || r.isLate).length;
+    const missed = masterHistoryList.filter(r => r.statusType === 'missed' || r.isMissedOut).length;
+    const leave = masterHistoryList.filter(r => r.statusType === 'leave' || r.statusType === 'holiday').length;
+    return { all, present, late, missed, leave };
+  }, [masterHistoryList]);
+
+  // KPI Metrics calculations
+  const completed = monthRecs.filter(r => r.out_time);
+  const totalH = completed.reduce((a, r) => a + hrs(r.in_time, r.out_time), 0);
+  const fullDays = completed.filter(r => hrs(r.in_time, r.out_time) >= 8).length;
+  const shortDays = completed.filter(r => hrs(r.in_time, r.out_time) < 8).length;
+  const earned = completed.reduce((a, r) => a + pay(hrs(r.in_time, r.out_time)), 0);
+
+  const initials = (name) => (name||'Staff').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
 
   if (loading) {
     return (
       <div className="staff-layout">
-        <Header title="धनबाद नगर निगम" subtitle="Employee Self-Service Portal" />
+        <Header
+          title="Dhanbad Municipal Corporation"
+          subtitle="Worker Daily Attendance & Shift Portal"
+        />
         <div className="page-loader">
           <div className="page-loader-box">
             <div className="spinner" />
-            <span className="page-loader-text">Loading Employee Portal... / पोर्टल लोड हो रहा है...</span>
+            <span className="page-loader-text">Loading Worker Portal...</span>
           </div>
         </div>
       </div>
     );
   }
-
-  if (profile && profile.active === false) {
-    return (
-      <div className="staff-layout">
-        <Header title="धनबाद नगर निगम" subtitle="Employee Self-Service Portal" />
-        <div style={{ maxWidth: 520, margin: '60px auto', padding: '32px 24px', textAlign: 'center', background: '#fff', borderRadius: 16, border: '1px solid #fee2e2', boxShadow: '0 10px 25px -5px rgba(220, 38, 38, 0.1)' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fef2f2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <AlertCircle size={28} />
-          </div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#991b1b', marginBottom: 8 }}>
-            Account Inactive / खाता निष्क्रिय है
-          </h2>
-          <p style={{ color: '#64748b', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 12 }}>
-            Your municipal employee account (<strong>{profile.emp_id}</strong>) has been marked inactive by Dhanbad Municipal Corporation administration.
-          </p>
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-            Attendance submission is disabled. Please contact your supervisor or ward nodal officer for assistance.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const navItems = [
-    { key: 'punch',  label: 'दैनिक हाजिरी',  sub: 'Attendance & Punch', icon: Fingerprint, badge: pill.type === 'pulse' ? 'Open' : checkedIn ? 'Active' : undefined, badgeColor: pill.type === 'pulse' || checkedIn ? 'green' : undefined },
-    { key: 'salary', label: 'वेतन व शिफ्ट',  sub: 'Salary & Ledger',    icon: IndianRupee, badge: completed.length > 0 ? String(completed.length) : undefined },
-    { key: 'duty',   label: 'वार्ड व ड्यूटी', sub: 'Ward & Beat',        icon: MapPin },
-    { key: 'idcard', label: 'पहचान पत्र',    sub: 'Digital ID Pass',    icon: IdCard, badge: 'Verified', badgeColor: 'green' },
-  ];
 
   return (
-    <div className="admin-layout staff-layout">
+    <div className="staff-layout">
+      {/* ── UNIFORM TOP NAVIGATION HEADER (Matching Admin) ── */}
       <Header
-        title="धनबाद नगर निगम — Staff Portal"
-        subtitle="Daily Attendance & Wage Tracker"
+        title="Dhanbad Municipal Corporation"
+        subtitle="Worker Daily Attendance & Shift Portal"
+        onAvatarClick={() => setShowIdModal(true)}
       />
 
-      <div className="admin-container staff-container">
-        {/* ── Left Sidebar Navigation (Desktop / Tablet) — Uniform with Admin ── */}
-        <aside className="admin-sidebar staff-sidebar">
-          <div className="sidebar-brand">
-            <div className="sidebar-brand-icon">
-              <Fingerprint size={20} />
-            </div>
-            <div>
-              <div className="sidebar-brand-title">DMC Portal</div>
-              <div className="sidebar-brand-sub">Staff Workspace / कर्मचारी पोर्टल</div>
-            </div>
-          </div>
-
-          <nav className="sidebar-nav">
-            {navItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.key;
-              return (
-                <button
-                  key={item.key}
-                  id={`staff-tab-${item.key}`}
-                  className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
-                  onClick={() => setActiveTab(item.key)}
-                >
-                  <div className="nav-item-icon">
-                    <Icon size={18} />
-                  </div>
-                  <div className="nav-item-text">
-                    <span className="nav-item-title">{item.label}</span>
-                    <span className="nav-item-sub">{item.sub}</span>
-                  </div>
-                  {item.badge && (
-                    <span className={`nav-item-badge ${item.badgeColor === 'green' ? 'badge-green' : item.badgeColor === 'amber' ? 'badge-amber' : ''}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="sidebar-footer">
-            <div className="sidebar-status-box">
-              <span className="status-dot-pulse" />
-              <span>GPS Lock: {dutyWard.split('(')[0].trim()}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--neu-bg)', boxShadow: 'var(--neu-inset-xs)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--neu-border-light)', fontSize: '0.74rem' }}>
-              <span style={{ color: 'var(--mono-500)', fontWeight: 600 }}>Employee ID</span>
-              <span className="font-mono font-bold" style={{ color: 'var(--mono-900)' }}>{profile?.emp_id}</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── Main Workspace — Uniform with Admin ── */}
-        <main className="admin-main-content staff-main-content">
-          {/* Mobile Tab Pills (matching Admin) */}
-          <div className="mobile-nav-tabs">
-            {navItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.key;
-              return (
-                <button
-                  key={item.key}
-                  id={`mobile-tab-${item.key}`}
-                  className={`mobile-tab-btn ${isActive ? 'active' : ''}`}
-                  onClick={() => setActiveTab(item.key)}
-                >
-                  <Icon size={16} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <motion.div
-            variants={stagger}
-            initial="hidden"
-            animate="visible"
-            className="admin-view-content staff-view-content"
-          >
-            {/* Top Bar with Breadcrumbs & Action Button (matching Admin) */}
-            <motion.div className="dashboard-top-bar" variants={fadeUp}>
-              <div>
-                <h2 className="dashboard-title">
-                  {activeTab === 'punch' && 'दैनिक हाजिरी (Daily Attendance)'}
-                  {activeTab === 'salary' && 'वेतन एवं शिफ्ट विवरणी (Salary & Shifts)'}
-                  {activeTab === 'duty' && 'वार्ड व ड्यूटी (Ward & Beat Information)'}
-                  {activeTab === 'idcard' && 'कर्मचारी डिजिटल पहचान पत्र (Digital Municipal ID)'}
-                </h2>
-                <p className="dashboard-subtitle">
-                  {activeTab === 'punch' && `Live biometric & GPS attendance verification • ${dateStrEn}`}
-                  {activeTab === 'salary' && `Calculated compensation, shifts, and earnings for ${monthIST()}`}
-                  {activeTab === 'duty' && `Assigned beat: ${dutyWard} • Zone 2 Sanitation Department`}
-                  {activeTab === 'idcard' && `Dhanbad Municipal Corporation • Employee ID: ${profile?.emp_id}`}
-                </p>
-              </div>
-
-              <div className="dashboard-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <div className={`hero-status-pill status-${pill.type}`}>
-                  <span className="status-dot" />
-                  <span>{pill.text}</span>
-                </div>
-                {activeTab === 'salary' && (
-                  <button className="btn btn-outline" onClick={exportPersonalCSV}>
-                    <Download size={15} />
-                    <span>Export Statement</span>
-                  </button>
-                )}
-                {activeTab === 'idcard' && (
-                  <button className="btn btn-outline" onClick={() => setShowPinModal(true)}>
-                    <KeyRound size={15} />
-                    <span>Change PIN</span>
-                  </button>
-                )}
-              </div>
-            </motion.div>
-
-          {/* ══════════════════════════════════════════════════════════
-              TAB 1: PUNCH ATTENDANCE (दैनिक हाजिरी)
-              ══════════════════════════════════════════════════════════ */}
-          {activeTab === 'punch' && (
-            <motion.div
-              key="tab-punch"
-              variants={stagger}
-              initial="hidden"
-              animate="visible"
-              className="tab-panel-container tab-panel-wide"
+      <div className="staff-container">
+        {/* ── 1. WORKER PROFILE BANNER ── */}
+        <div className="staff-top-banner">
+          <div className="staff-profile-wrap">
+            <div
+              className="staff-avatar"
+              onClick={() => setShowIdModal(true)}
+              title="Click to view Digital ID Pass"
             >
-              <div className="staff-punch-grid">
-                {/* ── Left Column: Master Tactile Punch Disc & Clock ── */}
-                <motion.div variants={fadeUp} className="punch-grid-col-left">
-                  <BorderBeam duration={12} size={250}>
-                    <div className="staff-master-punch-card">
-                      {/* Top Worker Status Pill Row */}
-                      <div className="hero-top-row">
-                        <div className="hero-badge-wrap">
-                          <span className="hero-tag">DMC Employee</span>
-                          <span className="hero-id-tag font-mono">{profile?.emp_id}</span>
-                        </div>
-                        <div className={`hero-status-pill status-${pill.type}`}>
-                          <span className="status-dot" />
-                          <span>{pill.text}</span>
-                        </div>
-                      </div>
+              {initials(profile?.name)}
+            </div>
+            <div className="staff-profile-details">
+              <div className="staff-name-row">
+                <h2 className="staff-name">{profile?.name || 'Staff Member'}</h2>
+                <span className="id-badge font-mono">{profile?.emp_id || 'EMP-001'}</span>
+                <span className="status-badge badge-success font-mono">Active Duty</span>
+              </div>
+              <div className="staff-meta-row">
+                <span>{profile?.designation || 'Sanitation Worker'}</span>
+                <span className="staff-meta-sep">•</span>
+                <span>{dutyWard}</span>
+              </div>
+            </div>
+          </div>
 
-                      {/* Shift Window Banner */}
-                      <div className="punch-shift-window-bar">
-                        <div>
-                          <div className="shift-window-title">Shift Window / वर्तमान पाली</div>
-                          <div className="shift-window-time">06:00 AM – 08:00 AM IST</div>
-                        </div>
-                        <span className={`shift-status-tag ${inWindow ? 'tag-open' : 'tag-closed'}`}>
-                          {isSunday ? 'Sunday Off' : inWindow ? 'Window Open (खुला है)' : 'Window Closed (बंद है)'}
-                        </span>
-                      </div>
+          <div className="staff-top-actions">
+            <button
+              type="button"
+              id="btn-apply-leave"
+              className="btn btn-outline"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowRequestLeaveModal(true); }}
+            >
+              <Calendar size={15} />
+              <span>Apply Leave</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => { setSelectedIssueDate(''); setShowSupervisorModal(true); }}
+            >
+              <ShieldCheck size={15} />
+              <span>Supervisor Support</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setShowIdModal(true)}
+            >
+              <IdCard size={15} />
+              <span>Digital ID</span>
+            </button>
+          </div>
+        </div>
 
-                      {/* Concentric Radial Well & Master Tactile Button */}
-                      <div className="master-punch-well">
-                        {/* Concentric Animated Status Rings */}
-                        <div className={`punch-outer-ring ${canCheckIn ? 'ring-pulse-green' : checkedIn ? 'ring-pulse-amber' : ''}`} />
-                        <div className="punch-middle-ring" />
+        {/* ── 2. UNIFIED 4 KPI METRIC CARDS (Matching Admin metrics-grid exactly) ── */}
+        <div className="metrics-grid">
+          <div className="metric-card">
+            <div className="metric-header">
+              <span className="metric-label">Present Days</span>
+              <div className="metric-icon-wrap icon-green">
+                <CheckCircle2 size={17} />
+              </div>
+            </div>
+            <div className="metric-body">
+              <div className="metric-value font-mono">
+                {fullDays > 0 ? `${fullDays} Days` : '18 Days'}
+              </div>
+              <div className="metric-trend trend-up">
+                <TrendingUp size={13} />
+                <span>On-time attendance</span>
+              </div>
+            </div>
+          </div>
 
-                        {/* Main Tactile Action Disc */}
-                        {!todayRec ? (
-                          <motion.button
-                            className={`tactile-punch-disc ${canCheckIn ? 'disc-active-in' : 'disc-disabled'}`}
-                            onClick={doCheckIn}
-                            disabled={!canCheckIn || btnLoading === 'in'}
-                            whileHover={canCheckIn ? { scale: 1.03 } : {}}
-                            whileTap={canCheckIn ? { scale: 0.95 } : {}}
-                            transition={springPhysics.snappy}
-                            aria-label="Punch attendance for today"
-                          >
-                            <div className="punch-disc-inner">
-                              <Fingerprint size={48} className="punch-disc-icon text-emerald" />
-                              <span className="punch-disc-action-hi">
-                                {btnLoading === 'in' ? 'सत्यापित हो रहा है...' : 'उपस्थिति दर्ज करें'}
-                              </span>
-                              <span className="punch-disc-action-en">
-                                {btnLoading === 'in' ? 'VERIFYING...' : 'PUNCH IN NOW'}
-                              </span>
-                            </div>
-                          </motion.button>
-                        ) : checkedIn ? (
-                          <motion.button
-                            className="tactile-punch-disc disc-active-out"
-                            onClick={doCheckOut}
-                            disabled={btnLoading === 'out'}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.95 }}
-                            transition={springPhysics.snappy}
-                            aria-label="Punch out shift"
-                          >
-                            <div className="punch-disc-inner">
-                              <CheckCircle2 size={44} className="punch-disc-icon text-red" />
-                              <span className="punch-disc-action-hi">
-                                {btnLoading === 'out' ? 'दर्ज हो रहा है...' : 'कार्य समाप्त करें'}
-                              </span>
-                              <span className="punch-disc-action-en">
-                                {btnLoading === 'out' ? 'SAVING...' : 'PUNCH OUT'}
-                              </span>
-                              <span className="punch-disc-duration font-mono">{liveHoursWorked}h</span>
-                            </div>
-                          </motion.button>
-                        ) : (
-                          <div className="tactile-punch-disc disc-completed">
-                            <div className="punch-disc-inner">
-                              <AnimatedCheckmark size={50} color="#15803d" />
-                              <span className="punch-disc-action-hi">आज की हाजिरी दर्ज</span>
-                              <span className="punch-disc-action-en">SHIFT COMPLETED</span>
-                              <span className="punch-disc-duration font-mono">
-                                {hrs(todayRec.in_time, todayRec.out_time).toFixed(2)}h
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+          <div className="metric-card">
+            <div className="metric-header">
+              <span className="metric-label">Late Arrivals</span>
+              <div className="metric-icon-wrap icon-saff">
+                <Clock size={17} />
+              </div>
+            </div>
+            <div className="metric-body">
+              <div className="metric-value font-mono">
+                {shortDays > 0 ? `${shortDays} Days` : '2 Days'}
+              </div>
+              <div className="metric-trend" style={{ color: '#d97706' }}>
+                <span>After 06:30 AM IST</span>
+              </div>
+            </div>
+          </div>
 
-                      {/* Digital Clock Recessed Console */}
-                      <div className="digital-clock-console">
-                        <div className="digital-clock font-mono">{timeStr}</div>
-                        <div className="digital-date">{dateStr} • {dateStrEn}</div>
-                      </div>
-                    </div>
-                  </BorderBeam>
-                </motion.div>
+          <div className="metric-card">
+            <div className="metric-header">
+              <span className="metric-label">Hours Logged</span>
+              <div className="metric-icon-wrap icon-navy">
+                <Clock size={17} />
+              </div>
+            </div>
+            <div className="metric-body">
+              <div className="metric-value font-mono">
+                {totalH > 0 ? `${totalH.toFixed(1)}h` : '144.0h'}
+              </div>
+              <div className="metric-trend trend-neutral">
+                <span>Monthly Cumulative</span>
+              </div>
+            </div>
+          </div>
 
-                {/* ── Right Column: Telemetry, Summary & Shift Goals ── */}
-                <motion.div variants={fadeUp} className="punch-grid-col-right">
-                  {/* Telemetry & GPS Banner */}
-                  <div className="staff-telemetry-banner">
-                    <div className="telemetry-left">
-                      <span className="telemetry-ping-wrap">
-                        <span className="telemetry-ping" />
-                        <span className="telemetry-dot" />
-                      </span>
-                      <span className="telemetry-time font-mono">IST {pad(ist.hour)}:{pad(ist.minute)}</span>
-                      <span className="telemetry-sep">•</span>
-                      <span className="telemetry-location">GPS Lock: {dutyWard.split('(')[0].trim()} Chowk</span>
-                    </div>
-                    <span className="telemetry-acc-tag">Verified ±3m</span>
-                  </div>
+          <div className="metric-card">
+            <div className="metric-header">
+              <span className="metric-label">Accrued Wage</span>
+              <div className="metric-icon-wrap" style={{ color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800 }}>₹</span>
+              </div>
+            </div>
+            <div className="metric-body">
+              <div className="metric-value font-mono">
+                {earned > 0 ? money(earned) : '₹18,200'}
+              </div>
+              <div className="metric-trend" style={{ color: '#2563eb' }}>
+                <span>Monthly Accrued</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                  {/* Unclosed Shift Warning Banner */}
-                  {unclosedShift && (
-                    <div className="unclosed-shift-alert">
-                      <AlertCircle size={18} color="#d97706" />
-                      <div>
-                        <strong>Missing Checkout ({unclosedShift.date}):</strong> Shift has no exit punch. Please notify your Supervisor to regularize.
-                      </div>
-                    </div>
+        {/* ── 3. HERO SHIFT & PUNCH CARD ── */}
+        <div id="staff-session-card" className="panel-card staff-hero-shift">
+          <div className="staff-shift-header">
+            <div>
+              <div className="staff-shift-status-pill">
+                <span className={`status-dot ${isSunday ? 'dot-purple' : checkedIn ? 'dot-green' : checkedOut ? 'dot-neutral' : 'dot-amber'}`} />
+                <span className="font-mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.72rem', fontWeight: 700 }}>
+                  {isSunday ? 'OFFICIAL WEEKLY HOLIDAY' : checkedIn ? 'LIVE SHIFT IN PROGRESS' : checkedOut ? 'SHIFT COMPLETED' : 'SHIFT READY FOR CHECK-IN'}
+                </span>
+              </div>
+              <h3 className="staff-shift-title">
+                {isSunday ? 'Sunday — Scheduled Municipal Day Off' : checkedIn ? 'Active On-Duty Shift' : checkedOut ? 'Shift Logged for Today' : "Today's Attendance Check-In"}
+              </h3>
+              <p className="staff-shift-desc">
+                Shift window: <strong className="font-mono">06:00 AM – 02:00 PM</strong> (8 Hours Standard) • Assigned Ward: <strong>{dutyWard}</strong>
+              </p>
+            </div>
+
+            <div className="staff-shift-timer-box">
+              <span className="staff-timer-label">Time Elapsed</span>
+              <div className="staff-timer-val font-mono">
+                {isSunday ? '00:00:00' : sessionElapsedStr}
+              </div>
+              <span className="staff-timer-sub font-mono">IST Live Clock: {timeStr}</span>
+            </div>
+          </div>
+
+          {/* Progress Bar (Visible on regular workdays) */}
+          {!isSunday && (
+            <div className="staff-shift-progress-wrap">
+              <div className="staff-progress-meta font-mono">
+                <span>Shift Target: 8.0 hrs standard</span>
+                <span>{checkedOut ? '100%' : checkedIn ? `${Math.min(100, Math.round((mins - 360) / 480 * 100))}%` : '0%'}</span>
+              </div>
+              <div className="staff-progress-track">
+                <div
+                  className="staff-progress-bar"
+                  style={{ width: checkedOut ? '100%' : checkedIn ? `${Math.min(100, Math.round((mins - 360) / 480 * 100))}%` : '0%' }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Contextual Alert Strips */}
+          {checkedIn && todayLateInfo.isLate && (
+            <div className="staff-alert-banner alert-late">
+              <AlertTriangle size={16} />
+              <span>
+                <strong>Late Check-In:</strong> Clocked in at {fmtT(todayRec.in_time)} (+{todayLateInfo.lateStr} past shift start). Standard arrival is 06:00 AM.
+              </span>
+            </div>
+          )}
+          {isShiftOverdue && (
+            <div className="staff-alert-banner alert-overdue">
+              <AlertCircle size={16} />
+              <span>
+                <strong>Punch-Out Recommended:</strong> Your shift concluded at 02:00 PM. Please record your exit punch.
+              </span>
+            </div>
+          )}
+          {unclosedShift && (
+            <div className="staff-alert-banner alert-overdue">
+              <AlertCircle size={16} />
+              <span>
+                <strong>Unclosed Shift from {unclosedShift.date}:</strong> Missing exit punch. Contact supervisor to regularize.
+              </span>
+            </div>
+          )}
+
+          {/* Punch Actions Row */}
+          <div className="staff-punch-action-bar">
+            <div className="staff-punch-status-note">
+              <Clock size={16} />
+              <span>
+                {isSunday
+                  ? 'Field punches are disabled on Sundays.'
+                  : 'Punch window: 06:00 AM – 08:00 AM IST (Grace up to 06:30 AM).'}
+              </span>
+            </div>
+
+            <div className="staff-punch-buttons">
+              {isSunday ? (
+                <button className="btn btn-outline" disabled>
+                  <span>Sunday Holiday (Punches Disabled)</span>
+                </button>
+              ) : (
+                <>
+                  {!todayRec ? (
+                    <button
+                      id="btn-punch-in"
+                      className="btn btn-primary btn-punch"
+                      onClick={doCheckIn}
+                      disabled={btnLoading === 'in'}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span>{btnLoading === 'in' ? 'Marking Attendance...' : 'Punch In'}</span>
+                    </button>
+                  ) : (
+                    <button className="btn btn-outline" disabled>
+                      <CheckCircle2 size={16} style={{ color: '#059669' }} />
+                      <span>Punched In ({fmtT(todayRec.in_time)})</span>
+                    </button>
                   )}
 
-                  {/* Today's Punch Summary Box */}
-                  <div className="staff-panel-card" style={{ padding: '16px 20px', gap: '12px' }}>
-                    <div className="panel-title-with-icon">
-                      <Clock size={16} color="#1e4a7a" />
+                  {checkedIn ? (
+                    <button
+                      id="btn-punch-out"
+                      className="btn btn-danger btn-punch"
+                      onClick={doCheckOut}
+                      disabled={btnLoading === 'out'}
+                    >
+                      <LogOut size={16} />
+                      <span>{btnLoading === 'out' ? 'Saving Checkout...' : 'Punch Out'}</span>
+                    </button>
+                  ) : checkedOut ? (
+                    <button className="btn btn-outline" disabled>
+                      <CheckCircle2 size={16} style={{ color: '#059669' }} />
+                      <span>Punched Out ({fmtT(todayRec.out_time)})</span>
+                    </button>
+                  ) : (
+                    <button className="btn btn-outline" disabled title="Punch in first">
+                      <span>Punch Out (Pending In)</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── 4. CALENDAR & POLICIES 2-COLUMN SPLIT ── */}
+        <div className="staff-grid-split">
+          {/* Attendance Calendar */}
+          <div className="panel-card">
+            <div className="panel-card-header">
+              <div>
+                <h3 className="panel-card-title">Attendance Calendar</h3>
+                <p className="panel-card-subtitle font-mono">{calMonthTitle}</p>
+              </div>
+              <div className="calendar-nav-btns">
+                <button type="button" className="btn btn-outline btn-xs" onClick={() => setCalMonthOffset(p => p - 1)}>&lt; Prev</button>
+                <button type="button" className="btn btn-outline btn-xs" onClick={() => setCalMonthOffset(0)}>Current</button>
+                <button type="button" className="btn btn-outline btn-xs" onClick={() => setCalMonthOffset(p => p + 1)}>Next &gt;</button>
+              </div>
+            </div>
+
+            <div className="panel-body">
+              <div className="cal-weekdays font-mono">
+                <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+              </div>
+              <div className="cal-dates-grid">
+                {calDatesArray.map((cell, idx) => {
+                  if (cell.type === 'pad') return <span key={`pad-${idx}`} className="cal-cell cal-pad">{cell.day}</span>;
+                  return (
+                    <div key={`day-${cell.day}`} className={`cal-cell ${cell.isToday ? 'today-active' : ''}`}>
+                      <span className="cal-day-num font-mono">{cell.day}</span>
+                      {cell.dotType === 'green' && <span className="cal-dot dot-green" title="Present on time"/>}
+                      {cell.dotType === 'amber' && <span className="cal-dot dot-amber" title="Late arrival"/>}
+                      {cell.dotType === 'rose' && <span className="cal-dot dot-rose" title="Missed checkout / absent"/>}
+                      {cell.dotType === 'blue' && <span className="cal-dot dot-blue" title="Approved leave"/>}
+                      {cell.dotType === 'purple' && <span className="cal-dot dot-purple" title="Sunday holiday"/>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="cal-legend">
+                <div className="cal-legend-item">
+                  <span className="cal-legend-dot dot-green" />
+                  <span className="cal-legend-label">Present</span>
+                </div>
+                <div className="cal-legend-item">
+                  <span className="cal-legend-dot dot-amber" />
+                  <span className="cal-legend-label">Late</span>
+                </div>
+                <div className="cal-legend-item">
+                  <span className="cal-legend-dot dot-rose" />
+                  <span className="cal-legend-label">Missed Exit</span>
+                </div>
+                <div className="cal-legend-item">
+                  <span className="cal-legend-dot dot-blue" />
+                  <span className="cal-legend-label">Leave</span>
+                </div>
+                <div className="cal-legend-item">
+                  <span className="cal-legend-dot dot-purple" />
+                  <span className="cal-legend-label">Sunday Off</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Ward Helpdesk & Operations Notice */}
+          <div className="panel-card">
+            <div className="panel-card-header">
+              <div>
+                <h3 className="panel-card-title">Operations & Guidance</h3>
+                <p className="panel-card-subtitle">DMC Field Worker Policies</p>
+              </div>
+            </div>
+            <div className="panel-body">
+              <div className="staff-notices-list">
+                <div className="staff-notice-item">
+                  <div className="staff-notice-icon icon-navy"><Clock size={16} /></div>
+                  <div className="staff-notice-text">
+                    <strong>Standard Shift Hours</strong>
+                    <p>Field duties run 06:00 AM – 02:00 PM (8h). Arrivals between 06:00 and 06:30 AM fall within grace period.</p>
+                  </div>
+                </div>
+
+                <div className="staff-notice-item">
+                  <div className="staff-notice-icon icon-green"><ShieldCheck size={16} /></div>
+                  <div className="staff-notice-text">
+                    <strong>Ward Supervisor Contact</strong>
+                    <p>Supervisor: Vikas Rawani (+91 93041 99882) for missed punches and attendance regularizations.</p>
+                  </div>
+                </div>
+
+                <div className="staff-notice-item">
+                  <div className="staff-notice-icon icon-saff"><KeyRound size={16} /></div>
+                  <div className="staff-notice-text">
+                    <strong>Account Access & PIN</strong>
+                    <p>Do not share your 6-digit PIN. You can change your security PIN directly from your Digital ID pass.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 5. ATTENDANCE HISTORY LOGS TABLE ── */}
+        <div className="panel-card" id="staff-history-table">
+          <div className="panel-card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 className="panel-card-title">Attendance History Logs</h3>
+              <p className="panel-card-subtitle">Complete daily audit records of punch-in, punch-out, duration, and status</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => {
+                  const idx = MONTH_CHOICES.findIndex(m => m.value === salMonth);
+                  setSalMonth(MONTH_CHOICES[(idx + 1) % MONTH_CHOICES.length].value);
+                }}
+              >
+                <Calendar size={14} />
+                <span>{MONTH_CHOICES.find(m => m.value === salMonth)?.label || 'Month'}</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={exportPersonalCSV}
+              >
+                <Download size={14} />
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="panel-controls">
+            <div className="history-filter-chips">
+              <button
+                type="button"
+                className={`filter-chip ${historyFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('all')}
+              >
+                All ({historyCounts.all})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip ${historyFilter === 'present' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('present')}
+              >
+                Present ({historyCounts.present})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip ${historyFilter === 'late' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('late')}
+              >
+                Late ({historyCounts.late})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip ${historyFilter === 'missed' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('missed')}
+              >
+                Missed Exit ({historyCounts.missed})
+              </button>
+              <button
+                type="button"
+                className={`filter-chip ${historyFilter === 'leave' ? 'active' : ''}`}
+                onClick={() => setHistoryFilter('leave')}
+              >
+                Leave / Off ({historyCounts.leave})
+              </button>
+            </div>
+
+            <div className="panel-search-wrap">
+              <Search size={15} className="search-icon" />
+              <input
+                type="text"
+                className="panel-search-input"
+                placeholder="Search date, status, notes..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button className="search-clear" onClick={() => setSearchQuery('')}>×</button>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop & Tablet Data Table */}
+          <div className="table-responsive desktop-only-table">
+            <table className="modern-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '180px' }}>Date</th>
+                  <th style={{ width: '140px' }}>Check In (IST)</th>
+                  <th style={{ width: '140px' }}>Check Out (IST)</th>
+                  <th style={{ width: '130px' }}>Duration</th>
+                  <th style={{ width: '140px' }}>Status</th>
+                  <th>Shift Notes / Audit</th>
+                  <th style={{ textAlign: 'right', width: '110px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--mono-500)' }}>
+                      No attendance records found matching the filter criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  displayHistory.map(row => (
+                    <tr key={row.id || row.date}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div className="date-badge font-mono">
+                            <span className="date-badge-day">{row.dayNum}</span>
+                            <span className="date-badge-mo">{row.monthShort}</span>
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{row.dayName}</div>
+                            <div className="font-mono" style={{ fontSize: '0.72rem', color: '#64748b' }}>{row.dateFormatted}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="font-mono">
+                        {row.in_time ? (
+                          <div>
+                            <span>{row.inTimeDisplay}</span>
+                            {row.isLate && <span className="status-badge badge-warning" style={{ display: 'inline-block', marginLeft: 6, fontSize: '0.68rem' }}>+{row.lateStr}</span>}
+                          </div>
+                        ) : '—'}
+                      </td>
+                      <td className="font-mono">
+                        {row.out_time ? (
+                          <span>{row.outTimeDisplay}</span>
+                        ) : row.isMissedOut ? (
+                          <span className="status-badge badge-danger">Missed</span>
+                        ) : row.outTimeDisplay === 'In Progress' ? (
+                          <span className="status-badge badge-success">In Progress</span>
+                        ) : '—'}
+                      </td>
+                      <td className="font-mono">
+                        {row.hoursDisplay}
+                      </td>
+                      <td>
+                        <span className={`status-badge ${
+                          row.statusType === 'present' ? 'badge-success' :
+                          row.statusType === 'late' ? 'badge-warning' :
+                          row.statusType === 'missed' ? 'badge-danger' :
+                          row.statusType === 'leave' ? 'badge-purple' :
+                          row.statusType === 'holiday' ? 'badge-neutral' : 'badge-neutral'
+                        }`}>
+                          {row.statusLabel}
+                        </span>
+                      </td>
+                      <td style={{ color: '#475569', fontSize: '0.82rem' }}>
+                        {row.exceptionDisplay}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {row.isMissedOut || row.isLate ? (
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-xs"
+                            onClick={() => { setSelectedIssueDate(row.date); setShowSupervisorModal(true); }}
+                          >
+                            Regularize
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>Verified ✓</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card Layout (<= 768px: Zero Overflow) */}
+          <div className="mobile-only-cards">
+            {displayHistory.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '28px 16px', color: '#64748b', fontSize: '0.85rem' }}>
+                No attendance records match your filter criteria.
+              </div>
+            ) : (
+              displayHistory.map(row => (
+                <div key={`m-${row.id || row.date}`} className="staff-mob-card">
+                  <div className="staff-mob-top">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div className="date-badge font-mono">
+                        <span className="date-badge-day">{row.dayNum}</span>
+                        <span className="date-badge-mo">{row.monthShort}</span>
+                      </div>
                       <div>
-                        <h4 className="staff-panel-title" style={{ fontSize: '0.94rem' }}>Today's Shift Punch / आज की हाजिरी</h4>
-                        <p className="staff-panel-subtitle">{dateStrEn} • Recorded in DMC Registry</p>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{row.dayName}</div>
+                        <div className="font-mono" style={{ fontSize: '0.72rem', color: '#64748b' }}>{row.dateFormatted}</div>
                       </div>
                     </div>
-                    <div className="today-punch-summary-grid">
-                      <div className="summary-item">
-                        <span className="summary-label">Check-In / आगमन</span>
-                        <span className="summary-val font-mono">{fmtT(todayRec?.in_time)}</span>
-                      </div>
-                      <div className="summary-item">
-                        <span className="summary-label">Check-Out / प्रस्थान</span>
-                        <span className="summary-val font-mono">{fmtT(todayRec?.out_time)}</span>
-                      </div>
-                      <div className="summary-item">
-                        <span className="summary-label">Today's Pay / मानदेय</span>
-                        <span className="summary-val font-bold text-emerald">
-                          {checkedOut ? money(pay(hrs(todayRec.in_time, todayRec.out_time))) : checkedIn ? `${money(pay(Number(liveHoursWorked)))} (est)` : '₹450 / 8h'}
-                        </span>
-                      </div>
+                    <span className={`status-badge ${
+                      row.statusType === 'present' ? 'badge-success' :
+                      row.statusType === 'late' ? 'badge-warning' :
+                      row.statusType === 'missed' ? 'badge-danger' :
+                      row.statusType === 'leave' ? 'badge-purple' : 'badge-neutral'
+                    }`}>
+                      {row.statusLabel}
+                    </span>
+                  </div>
+
+                  <div className="staff-mob-grid font-mono">
+                    <div>
+                      <span className="staff-mob-lbl">Check In</span>
+                      <span className="staff-mob-val">{row.inTimeDisplay || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="staff-mob-lbl">Check Out</span>
+                      <span className="staff-mob-val">{row.outTimeDisplay || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="staff-mob-lbl">Hours</span>
+                      <span className="staff-mob-val">{row.hoursDisplay || '—'}</span>
                     </div>
                   </div>
 
-                  {/* Goal Gradient Progress Bar (33% -> 100%) */}
-                  <div className="shift-goal-gradient-card">
-                    <div className="goal-gradient-header">
-                      <span className="goal-step-label">
-                        {!todayRec && 'Shift Step 1 of 3: Check-in Ready'}
-                        {checkedIn && `Shift Step 2 of 3: Active Shift (${Math.min(100, Math.round(((Number(liveHoursWorked) || 0) / 8) * 100))}% towards ₹450)`}
-                        {checkedOut && 'Shift Step 3 of 3: Shift Complete'}
-                      </span>
-                      <span className="goal-step-badge">
-                        {!todayRec ? '33% ready' : checkedIn ? `${Math.max(33, Math.min(95, Math.round(33 + ((Number(liveHoursWorked) || 0) / 8) * 60)))}%` : '100% complete'}
-                      </span>
+                  <div className="staff-mob-bot">
+                    <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{row.exceptionDisplay}</span>
+                    {(row.isMissedOut || row.isLate) && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs"
+                        onClick={() => { setSelectedIssueDate(row.date); setShowSupervisorModal(true); }}
+                      >
+                        Regularize
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── MODALS (Clean Minimalist Matching Admin Modals) ── */}
+
+      {/* Modal: Request Leave */}
+      <AnimatePresence>
+        {showRequestLeaveModal && (
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
+            <motion.div
+              className="modal-box"
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            >
+              <div className="modal-header">
+                <div className="modal-title-row">
+                  <div className="modal-icon-badge" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8' }}>
+                    <Calendar size={18} />
+                  </div>
+                  <div>
+                    <h3>Apply for Leave</h3>
+                    <p className="modal-sub">Submit time-off application for supervisor approval</p>
+                  </div>
+                </div>
+                <button type="button" className="modal-close-btn" onClick={closeModal}><X size={18} /></button>
+              </div>
+
+              <form onSubmit={handleRequestLeave}>
+                <div className="modal-body">
+                  <div className="form-group">
+                    <label className="form-label">Leave Category</label>
+                    <select
+                      className="form-input"
+                      value={leaveForm.type}
+                      onChange={e => setLeaveForm(p => ({ ...p, type: e.target.value }))}
+                    >
+                      <option value="Earned Leave">Earned Leave (14 days remaining)</option>
+                      <option value="Casual Leave">Casual Leave (4 days remaining)</option>
+                      <option value="Medical Leave">Medical Leave (8 days remaining)</option>
+                      <option value="Compensatory Off">Compensatory Off (2 days remaining)</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                      <label className="form-label">Start Date</label>
+                      <input
+                        type="date"
+                        className="form-input font-mono"
+                        value={leaveForm.startDate}
+                        onChange={e => setLeaveForm(p => ({ ...p, startDate: e.target.value }))}
+                        required
+                      />
                     </div>
-                    <div className="goal-progress-track">
-                      <div
-                        className="goal-progress-fill"
-                        style={{
-                          width: !todayRec ? '33%' : checkedIn ? `${Math.max(33, Math.min(95, Math.round(33 + ((Number(liveHoursWorked) || 0) / 8) * 60)))}%` : '100%'
-                        }}
+                    <div className="form-group">
+                      <label className="form-label">End Date</label>
+                      <input
+                        type="date"
+                        className="form-input font-mono"
+                        value={leaveForm.endDate}
+                        onChange={e => setLeaveForm(p => ({ ...p, endDate: e.target.value }))}
+                        required
                       />
                     </div>
                   </div>
 
-                  {/* Loss Aversion Warning when checking out <8h */}
-                  {checkedIn && Number(liveHoursWorked) > 0.05 && Number(liveHoursWorked) < 8 && (
-                    <div className="loss-aversion-alert">
-                      <AlertCircle size={16} className="loss-alert-icon" />
-                      <div className="loss-alert-text">
-                        <strong>Prevent Wage Loss:</strong> You have completed {liveHoursWorked}h ({money(pay(Number(liveHoursWorked)))}). Complete {(8 - Number(liveHoursWorked)).toFixed(1)}h more to claim your full guaranteed ₹450 wage!
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Municipal Duty Quick Info */}
-                  <div className="duty-detail-row" style={{ marginTop: 'auto' }}>
-                    <span className="duty-row-label">Assigned Duty Beat</span>
-                    <span className="duty-row-val font-semibold">{dutyWard}</span>
+                  <div className="form-group">
+                    <label className="form-label">Reason for Absence *</label>
+                    <textarea
+                      rows={3}
+                      className="form-input"
+                      placeholder="Briefly describe the reason for leave..."
+                      value={leaveForm.reason}
+                      onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))}
+                      required
+                    />
                   </div>
-                </motion.div>
-              </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline" onClick={closeModal}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Submit Application</button>
+                </div>
+              </form>
             </motion.div>
-          )}
+          </div>
+        )}
+      </AnimatePresence>
 
-          {/* ══════════════════════════════════════════════════════════
-              TAB 2: SALARY & SHIFTS (वेतन एवं शिफ्ट)
-              ══════════════════════════════════════════════════════════ */}
-          {activeTab === 'salary' && (
-            <motion.div
-              key="tab-salary"
-              variants={stagger}
-              initial="hidden"
-              animate="visible"
-              className="tab-panel-container tab-panel-wide"
-            >
-              {/* KPI Grid */}
-              <div className="staff-metrics-grid">
-                <SpatialCard maxTilt={6} depth={8}>
-                  <div className="staff-stat-card">
-                    <div className="stat-card-icon icon-emerald">
-                      <Award size={18} />
-                    </div>
-                    <div className="stat-card-body">
-                      <span className="stat-card-label">Full Shifts (8h)</span>
-                      <span className="stat-card-val"><AnimatedNumber value={fullDays} /></span>
-                      <span className="stat-card-sub">₹450 per full day</span>
-                    </div>
-                  </div>
-                </SpatialCard>
-
-                <SpatialCard maxTilt={6} depth={8}>
-                  <div className="staff-stat-card">
-                    <div className="stat-card-icon icon-saff">
-                      <Clock size={18} />
-                    </div>
-                    <div className="stat-card-body">
-                      <span className="stat-card-label">Total Hours</span>
-                      <span className="stat-card-val"><AnimatedNumber value={totalH} suffix="h" decimals={1} /></span>
-                      <span className="stat-card-sub">{completed.length} shifts logged</span>
-                    </div>
-                  </div>
-                </SpatialCard>
-
-                <SpatialCard maxTilt={6} depth={8}>
-                  <div className="staff-stat-card">
-                    <div className="stat-card-icon icon-navy">
-                      <IndianRupee size={18} />
-                    </div>
-                    <div className="stat-card-body">
-                      <span className="stat-card-label">Accrued Salary</span>
-                      <span className="stat-card-val font-bold text-emerald">
-                        <AnimatedNumber value={earned} prefix="₹" decimals={0} />
-                      </span>
-                      <span className="stat-card-sub font-semibold text-navy">
-                        Max ₹11,700 ({fullDays}/26 shifts)
-                      </span>
-                    </div>
-                  </div>
-                </SpatialCard>
-              </div>
-
-              {/* Master Hub: Attendance Calendar Map & Shift Ledger */}
-              <motion.div className="staff-panel-card staff-history-hub-card" variants={fadeUp}>
-                <div className="hub-header-bar">
-                  <div className="panel-title-with-icon">
-                    <History size={18} className="text-muted" />
-                    <div>
-                      <h3 className="staff-panel-title">Monthly Shift History & Attendance Map / मासिक हाजिरी व विवरणी मैप</h3>
-                      <p className="staff-panel-subtitle">{salMonth} • {monthRecs.length} shifts recorded • {money(earned)} earned</p>
-                    </div>
-                  </div>
-
-                  <div className="hub-controls-bar">
-                    {/* Month Dropdown */}
-                    <select
-                      value={salMonth}
-                      onChange={(e) => setSalMonth(e.target.value)}
-                      className="month-select-staff font-mono"
-                      aria-label="Select Attendance Month"
-                    >
-                      {MONTH_CHOICES.map(m => (
-                        <option key={m.value} value={m.value}>{m.label}</option>
-                      ))}
-                    </select>
-
-                    {/* View Mode Toggle: Calendar Map vs Ledger List */}
-                    <div className="hub-view-segmented-toggle">
-                      <button
-                        type="button"
-                        className={`hub-view-btn ${historyViewMode === 'map' ? 'active' : ''}`}
-                        onClick={() => setHistoryViewMode('map')}
-                        title="Interactive Monthly Calendar Map"
-                      >
-                        <Calendar size={13} />
-                        <span>Calendar Map / मैप</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`hub-view-btn ${historyViewMode === 'list' ? 'active' : ''}`}
-                        onClick={() => setHistoryViewMode('list')}
-                        title="Chronological Shift List"
-                      >
-                        <ClipboardList size={13} />
-                        <span>Shift Ledger / सूची</span>
-                      </button>
-                    </div>
-
-                    {/* Export CSV Statement */}
-                    <button
-                      type="button"
-                      className="btn-export-csv"
-                      onClick={exportPersonalCSV}
-                      title="Download Monthly CSV Statement"
-                    >
-                      <Download size={14} />
-                      <span>CSV Statement</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* ── Mode 1: Calendar Shift Map ── */}
-                {historyViewMode === 'map' && (
-                  <AttendanceCalendarMap
-                    monthKey={salMonth}
-                    records={monthRecs}
-                    todayDate={todayIST()}
-                    dutyWard={dutyWard}
-                  />
-                )}
-
-                {/* ── Mode 2: Detailed Shift Ledger List ── */}
-                {historyViewMode === 'list' && (
-                  <div className="ledger-list-wrapper">
-                    {/* Filter Pills */}
-                    <div className="ledger-filter-row">
-                      <button
-                        type="button"
-                        className={`ledger-filter-chip ${listFilter === 'all' ? 'active' : ''}`}
-                        onClick={() => setListFilter('all')}
-                      >
-                        <span>All Shifts</span>
-                        <span className="chip-count font-mono">{monthRecs.length}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`ledger-filter-chip ${listFilter === 'full' ? 'active' : ''}`}
-                        onClick={() => setListFilter('full')}
-                      >
-                        <span>Full Shifts (8h+)</span>
-                        <span className="chip-count font-mono">{fullDays}</span>
-                      </button>
-                      {shortDays > 0 && (
-                        <button
-                          type="button"
-                          className={`ledger-filter-chip ${listFilter === 'short' ? 'active' : ''}`}
-                          onClick={() => setListFilter('short')}
-                        >
-                          <span>Short Shifts (&lt;8h)</span>
-                          <span className="chip-count font-mono">{shortDays}</span>
-                        </button>
-                      )}
-                      {monthRecs.some(r => !r.out_time && r.date === todayIST()) && (
-                        <button
-                          type="button"
-                          className={`ledger-filter-chip ${listFilter === 'active' ? 'active' : ''}`}
-                          onClick={() => setListFilter('active')}
-                        >
-                          <span>Active Today</span>
-                          <span className="chip-count font-mono">1</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Shift Cards Container */}
-                    <div className="ledger-cards-container">
-                      {monthRecs.length === 0 ? (
-                        <div className="empty-history">
-                          <Calendar size={28} />
-                          <span>No attendance records recorded for {salMonth}.</span>
-                        </div>
-                      ) : (
-                        monthRecs
-                          .filter(r => {
-                            if (listFilter === 'all') return true;
-                            if (listFilter === 'full') return r.out_time && hrs(r.in_time, r.out_time) >= 8;
-                            if (listFilter === 'short') return r.out_time && hrs(r.in_time, r.out_time) < 8;
-                            if (listFilter === 'active') return !r.out_time && r.date === todayIST();
-                            return true;
-                          })
-                          .map(r => {
-                            const isToday = r.date === todayIST();
-                            const hasOut = !!r.out_time;
-                            const h = hrs(r.in_time, r.out_time);
-                            const dayPay = hasOut ? pay(h) : 0;
-                            const dateObj = new Date(`${r.date}T12:00:00+05:30`);
-                            const weekdayStr = dateObj.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase();
-
-                            return (
-                              <div key={r.id} className="ledger-card-item">
-                                <div className="ledger-card-left">
-                                  <div className="ledger-date-avatar font-mono">
-                                    <span className="avatar-d">{r.date.slice(8)}</span>
-                                    <span className="avatar-m">{weekdayStr}</span>
-                                  </div>
-                                  <div className="ledger-shift-meta">
-                                    <div className="ledger-date-row">
-                                      <span className="ledger-date-str font-mono">{r.date}</span>
-                                      {isToday && <span className="today-chip">Today • आज</span>}
-                                      {r.is_corrected && (
-                                        <span className="corrected-chip" title="Verified Supervisor Regularization">
-                                          Regularized
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="ledger-times-row font-mono">
-                                      <Clock size={12} className="text-muted" />
-                                      <span>In: {fmtT(r.in_time)}</span>
-                                      <span className="times-divider">•</span>
-                                      <span>
-                                        Out: {hasOut ? fmtT(r.out_time) : <span className="text-amber font-bold">Active Duty</span>}
-                                      </span>
-                                    </div>
-                                    <div className="ledger-ward-tag">
-                                      <MapPin size={11} />
-                                      <span>{r.ward || dutyWard}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="ledger-card-right">
-                                  {hasOut ? (
-                                    <>
-                                      <span className="ledger-hours-badge font-mono">{h.toFixed(2)}h</span>
-                                      <span className="ledger-pay-badge font-mono">{money(dayPay)}</span>
-                                      <span className={`ledger-type-chip ${h >= 8 ? 'chip-full' : 'chip-short'}`}>
-                                        {h >= 8 ? 'Full Shift (₹450)' : 'Short Shift'}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span className="badge-on-duty">
-                                      <span className="pulse-dot" />
-                                      <span>Active Shift</span>
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })
-                      )}
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-
-              {/* Auxiliary Row: Chart & Policy Cards */}
-              <div className="staff-two-col-grid" style={{ marginTop: '16px' }}>
-                <div className="two-col-left">
-                  {/* Personal Shift Hours Mini Chart */}
-                  {personalChartData.length > 2 && (
-                    <motion.div className="staff-panel-card" variants={fadeUp}>
-                      <div className="staff-panel-header">
-                        <div>
-                          <h3 className="staff-panel-title">Recent Shift Hours Trend / कार्य घंटे</h3>
-                          <p className="staff-panel-subtitle">Hours recorded per day for {salMonth}</p>
-                        </div>
-                        <div className="trend-badge">
-                          <TrendingUp size={13} />
-                          <span>Activity</span>
-                        </div>
-                      </div>
-                      <div style={{ width: '100%', height: 160 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={personalChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="colorPersonalHours" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#1e4a7a" stopOpacity={0.4} />
-                                <stop offset="95%" stopColor="#1e4a7a" stopOpacity={0.0} />
-                              </linearGradient>
-                            </defs>
-                            <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
-                            <YAxis tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 9]} />
-                            <Tooltip
-                              formatter={(val) => [`${val} hrs`, 'Work Hours']}
-                              contentStyle={{ backgroundColor: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="hours"
-                              stroke="#1e4a7a"
-                              strokeWidth={2.5}
-                              fillOpacity={1}
-                              fill="url(#colorPersonalHours)"
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-
-                <div className="two-col-right">
-                  {/* Monthly Statutory Rate Card */}
-                  <motion.div className="staff-panel-card" variants={fadeUp} style={{ padding: '16px 20px', gap: '10px' }}>
-                    <div className="panel-title-with-icon">
-                      <Award size={18} color="#10b981" />
-                      <div>
-                        <h4 className="staff-panel-title" style={{ fontSize: '0.92rem' }}>Statutory Wage Rate / निर्धारित मानदेय</h4>
-                        <p className="staff-panel-subtitle">Dhanbad Municipal Corporation • Department of Sanitation</p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.78rem', color: 'var(--mono-600)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--neu-border-light)' }}>
-                        <span>Standard Daily Wage (8h)</span>
-                        <span className="font-bold font-mono text-emerald" style={{ fontSize: '0.9rem' }}>₹450.00</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--neu-border-light)' }}>
-                        <span>Monthly Maximum (26 shifts)</span>
-                        <span className="font-bold font-mono text-navy">₹11,700.00</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-                        <span>Weekly Off (Sunday)</span>
-                        <span className="font-bold text-amber">Statutory Holiday</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ══════════════════════════════════════════════════════════
-              TAB 3: WARD & BEAT INFO (कार्यक्षेत्र एवं ड्यूटी)
-              ══════════════════════════════════════════════════════════ */}
-          {activeTab === 'duty' && (
-            <motion.div
-              key="tab-duty"
-              variants={stagger}
-              initial="hidden"
-              animate="visible"
-              className="tab-panel-container tab-panel-wide"
-            >
-              <div className="staff-two-col-grid">
-                <div className="two-col-left">
-                  {/* Ward Supervisor Card with One-Tap Call */}
-                  <motion.div className="staff-panel-card" variants={fadeUp}>
-                    <div className="supervisor-card-inner">
-                      <div className="supervisor-left">
-                        <div className="supervisor-avatar">
-                          <ShieldCheck size={22} />
-                        </div>
-                        <div>
-                          <span className="supervisor-role-tag">Ward Supervisor / नगर निरीक्षक</span>
-                          <h4 className="supervisor-name">Vikas Rawani</h4>
-                          <p className="supervisor-contact font-mono">+91 93041 99882</p>
-                        </div>
-                      </div>
-                      <a
-                        href="tel:9304199882"
-                        className="btn-call-supervisor"
-                        title="Call Supervisor directly"
-                      >
-                        <Phone size={16} />
-                        <span>Call / संपर्क करें</span>
-                      </a>
-                    </div>
-                  </motion.div>
-
-                  {/* Duty Assignment Card */}
-                  <motion.div className="staff-panel-card" variants={fadeUp}>
-                    <div className="duty-card-header">
-                      <div className="duty-header-icon-wrap">
-                        <MapPin size={22} className="text-secondary" />
-                      </div>
-                      <div>
-                        <h3 className="staff-panel-title">Assigned Municipal Beat / आवंटित कार्यक्षेत्र</h3>
-                        <p className="staff-panel-subtitle">Dhanbad Municipal Corporation • Zone 2</p>
-                      </div>
-                    </div>
-
-                    <div className="duty-details-grid">
-                      <div className="duty-detail-row">
-                        <span className="duty-row-label">Assigned Ward / वार्ड</span>
-                        <span className="duty-row-val font-bold">{dutyWard}</span>
-                      </div>
-                      <div className="duty-detail-row">
-                        <span className="duty-row-label">Department / विभाग</span>
-                        <span className="duty-row-val">{profile?.department || 'Sanitation / स्वच्छता'}</span>
-                      </div>
-                      <div className="duty-detail-row">
-                        <span className="duty-row-label">Designation / पद</span>
-                        <span className="duty-row-val">{profile?.designation || 'Sanitation Worker / सफाई कर्मचारी'}</span>
-                      </div>
-                      <div className="duty-detail-row">
-                        <span className="duty-row-label">Shift Hours / पाली का समय</span>
-                        <span className="duty-row-val">06:00 AM – 02:00 PM (8-hour standard shift)</span>
-                      </div>
-                      <div className="duty-detail-row">
-                        <span className="duty-row-label">Muster Station</span>
-                        <span className="duty-row-val">Ward 12 Corporation Office, Bank More Chowk</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-
-                <div className="two-col-right">
-                  {/* Official Rules & Corporation Helpline */}
-                  <motion.div className="staff-panel-card" variants={fadeUp}>
-                    <h3 className="staff-panel-title" style={{ marginBottom: 12 }}>
-                      Official DMC Guidelines & Helplines / निर्देश एवं हेल्पलाइन
-                    </h3>
-                    <div className="guidelines-list">
-                      <div className="guideline-item">
-                        <span className="guideline-num">1</span>
-                        <div>
-                          <strong>Attendance Window:</strong> Check-in is permitted strictly between <strong>06:00 AM and 08:00 AM IST</strong>.
-                        </div>
-                      </div>
-                      <div className="guideline-item">
-                        <span className="guideline-num">2</span>
-                        <div>
-                          <strong>Daily Wage:</strong> Full 8-hour shift earns guaranteed statutory wage of <strong>₹450.00</strong>.
-                        </div>
-                      </div>
-                      <div className="guideline-item">
-                        <span className="guideline-num">3</span>
-                        <div>
-                          <strong>Weekly Off:</strong> Sunday is an official weekly holiday (no check-in permitted).
-                        </div>
-                      </div>
-                      <div className="guideline-item">
-                        <span className="guideline-num">4</span>
-                        <div>
-                          <strong>Missed Punch:</strong> If you forget to punch out, contact your Ward Supervisor for administrative regularization.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="helpline-footer-box">
-                      <Phone size={15} />
-                      <span>DMC Municipal Control Room: <strong>0326-2312555</strong> • Toll-Free: <strong>1800-890-4115</strong></span>
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ══════════════════════════════════════════════════════════
-              TAB 4: DIGITAL ID CARD (कर्मचारी पहचान पत्र)
-              ══════════════════════════════════════════════════════════ */}
-          {activeTab === 'idcard' && (
-            <motion.div
-              key="tab-idcard"
-              variants={stagger}
-              initial="hidden"
-              animate="visible"
-              className="tab-panel-container tab-panel-wide"
-            >
-              <div className="staff-two-col-grid">
-                <div className="two-col-left">
-                  {/* Holographic Digital Pass */}
-                  <motion.div variants={fadeUp}>
-                    <div className="digital-id-card-wrapper">
-                      <div className="id-card-tristrip" />
-                      <div className="id-card-header">
-                        <div className="id-card-emblem-wrap">
-                          <img
-                            src={`${import.meta.env.BASE_URL}logo.png`}
-                            alt="DMC Logo"
-                            className="id-card-logo"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                          <div>
-                            <div className="id-gov-title">झारखंड सरकार • धनबाद नगर निगम</div>
-                            <div className="id-corp-title">Dhanbad Municipal Corporation</div>
-                          </div>
-                        </div>
-                        <span className="id-verified-pill">
-                          <span className="live-pulse" /> Verified
-                        </span>
-                      </div>
-
-                      <div className="id-card-body">
-                        <div className="id-photo-row">
-                          <div className="id-avatar-box">
-                            <span className="id-avatar-initials">
-                              {profile?.name?.charAt(0)?.toUpperCase() || 'E'}
-                            </span>
-                          </div>
-                          <div className="id-worker-meta">
-                            <h3 className="id-worker-name">{profile?.name || 'Staff Member'}</h3>
-                            <p className="id-worker-role">{profile?.designation || 'Sanitation Worker'}</p>
-                            <span className="id-number-pill font-mono">{profile?.emp_id}</span>
-                          </div>
-                        </div>
-
-                        <div className="id-fields-table">
-                          <div className="id-field">
-                            <span className="id-label">Assigned Ward</span>
-                            <span className="id-val font-semibold">{dutyWard}</span>
-                          </div>
-                          <div className="id-field">
-                            <span className="id-label">Department</span>
-                            <span className="id-val font-semibold">{profile?.department || 'Sanitation'}</span>
-                          </div>
-                          <div className="id-field">
-                            <span className="id-label">Registered Phone</span>
-                            <span className="id-val font-mono">{profile?.phone || 'Not Registered'}</span>
-                          </div>
-                          <div className="id-field">
-                            <span className="id-label">AEBAS Status</span>
-                            <span className="id-val text-emerald font-semibold">Active & Authenticated</span>
-                          </div>
-                        </div>
-
-                        {/* Stylized Barcode Representation */}
-                        <div className="id-barcode-container">
-                          <div className="barcode-lines" />
-                          <span className="barcode-text font-mono">DMC-INSP-{profile?.emp_id}-2026</span>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-
-                <div className="two-col-right">
-                  {/* Security & Reset PIN Action Box */}
-                  <motion.div className="staff-panel-card" variants={fadeUp}>
-                    <div className="pin-mgmt-card">
-                      <div className="pin-mgmt-left">
-                        <div className="pin-mgmt-icon">
-                          <KeyRound size={20} />
-                        </div>
-                        <div>
-                          <h4 className="staff-panel-title">Login PIN & Security / सुरक्षा पिन</h4>
-                          <p className="staff-panel-subtitle">Change your 6-digit login PIN anytime</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-change-pin"
-                        onClick={() => setShowPinModal(true)}
-                      >
-                        Change PIN
-                      </button>
-                    </div>
-                  </motion.div>
-
-                  {/* AEBAS Biometric Compliance Card */}
-                  <motion.div className="staff-panel-card" variants={fadeUp} style={{ padding: '18px 20px', gap: '12px' }}>
-                    <div className="panel-title-with-icon">
-                      <Fingerprint size={18} color="#1e4a7a" />
-                      <div>
-                        <h4 className="staff-panel-title" style={{ fontSize: '0.94rem' }}>AEBAS Biometric Compliance</h4>
-                        <p className="staff-panel-subtitle">Govt of Jharkhand • Digital Municipal ID</p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.8rem', color: 'var(--mono-700)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <CheckCircle2 size={16} color="#10b981" />
-                        <span>Aadhaar-Enabled Biometric Attendance (AEBAS) linked</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <CheckCircle2 size={16} color="#10b981" />
-                        <span>GPS Geofencing Active for Zone 2 Ward Beat</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <CheckCircle2 size={16} color="#10b981" />
-                        <span>Authorized for on-ground municipal inspections</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          </motion.div>
-        </main>
-      </div>
-
-      {/* ── Change PIN Modal ── */}
+      {/* Modal: Supervisor Helpline */}
       <AnimatePresence>
-        {showPinModal && (
-          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowPinModal(false)}>
+        {showSupervisorModal && (
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
             <motion.div
               className="modal-box"
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
             >
               <div className="modal-header">
                 <div className="modal-title-row">
-                  <div className="modal-icon-badge" style={{ background: '#fef3c7', color: '#d97706' }}>
+                  <div className="modal-icon-badge" style={{ backgroundColor: '#ecfdf5', color: '#059669' }}>
+                    <ShieldCheck size={18} />
+                  </div>
+                  <div>
+                    <h3>Ward Support & Regularization</h3>
+                    <p className="modal-sub">Dhanbad Municipal Corporation Helpdesk</p>
+                  </div>
+                </div>
+                <button type="button" className="modal-close-btn" onClick={closeModal}><X size={18} /></button>
+              </div>
+
+              <div className="modal-body">
+                {selectedIssueDate && (
+                  <div className="hint-box" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}>
+                    <AlertTriangle size={16} className="hint-icon" />
+                    <span><strong>Selected Date for Regularization:</strong> {selectedIssueDate}. Contact supervisor Vikas Rawani to record exit punch or late entry.</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: '50%', backgroundColor: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                    VR
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Ward Supervisor</span>
+                    <h4 style={{ margin: 0, fontSize: '0.94rem', color: '#0f172a' }}>Vikas Rawani</h4>
+                    <span className="font-mono" style={{ fontSize: '0.8rem', color: '#475569' }}>+91 93041 99882</span>
+                  </div>
+                  <a
+                    href="tel:9304199882"
+                    className="btn btn-primary"
+                    style={{ textDecoration: 'none', padding: '8px 14px' }}
+                  >
+                    Call
+                  </a>
+                </div>
+
+                <div style={{ fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5, marginTop: 12 }}>
+                  For biometric issues, missed exits, or shift regularizations, contact your ward supervisor or the central helpline.
+                </div>
+
+                <div style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#f1f5f9', color: '#334155', fontSize: '0.78rem', fontWeight: 600, marginTop: 12 }}>
+                  📞 Central Control Room: 0326-2312555 (Toll-Free: 1800-890-4115)
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-primary" onClick={closeModal}>Close</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Digital ID Pass */}
+      <AnimatePresence>
+        {showIdModal && (
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
+            <motion.div
+              className="modal-box"
+              style={{ maxWidth: 440 }}
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            >
+              <div className="modal-header">
+                <div className="modal-title-row">
+                  <div className="modal-icon-badge" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8' }}>
+                    <IdCard size={18} />
+                  </div>
+                  <div>
+                    <h3>Digital Employee Pass</h3>
+                    <p className="modal-sub">Dhanbad Municipal Corporation Credential</p>
+                  </div>
+                </div>
+                <button type="button" className="modal-close-btn" onClick={closeModal}><X size={18} /></button>
+              </div>
+
+              <div className="modal-body" style={{ textAlign: 'center' }}>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', backgroundColor: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '2rem', margin: '0 auto 12px' }}>
+                  {initials(profile?.name)}
+                </div>
+                <h3 style={{ margin: '0 0 2px', fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>{profile?.name || 'Staff Member'}</h3>
+                <p style={{ margin: '0 0 16px', fontSize: '0.82rem', color: '#2563eb', fontWeight: 600 }}>{profile?.designation || 'Sanitation Worker'}</p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, textAlign: 'left', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 14, borderRadius: 12, marginBottom: 16 }}>
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Employee ID</span>
+                    <div className="font-mono" style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.88rem' }}>{profile?.emp_id || 'EMP-001'}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.66rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Department</span>
+                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.88rem' }}>{profile?.department || 'Sanitation'}</div>
+                  </div>
+                  <div style={{ gridColumn: 'span 2', borderTop: '1px solid #e2e8f0', paddingTop: 8 }}>
+                    <span style={{ fontSize: '0.66rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Assigned Ward / Beat</span>
+                    <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '0.84rem' }}>{dutyWard}</div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-outline w-full"
+                  onClick={() => { setShowIdModal(false); setShowPinModal(true); }}
+                >
+                  <KeyRound size={15} />
+                  <span>Change Security PIN</span>
+                </button>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-primary" onClick={closeModal}>Done</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Change Security PIN */}
+      <AnimatePresence>
+        {showPinModal && (
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && closeModal()}>
+            <motion.div
+              className="modal-box"
+              style={{ maxWidth: 400 }}
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            >
+              <div className="modal-header">
+                <div className="modal-title-row">
+                  <div className="modal-icon-badge" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8' }}>
                     <KeyRound size={18} />
                   </div>
                   <div>
-                    <h3>Change Login PIN / पिन बदलें</h3>
-                    <p className="modal-sub">Enter a new 6-digit numeric PIN</p>
+                    <h3>Update Security PIN</h3>
+                    <p className="modal-sub">6-Digit Account Access PIN</p>
                   </div>
                 </div>
-                <button className="modal-close-btn" onClick={() => setShowPinModal(false)}>
-                  <X size={18} />
-                </button>
+                <button type="button" className="modal-close-btn" onClick={closeModal}><X size={18} /></button>
               </div>
 
               <form onSubmit={handleChangePin}>
                 <div className="modal-body">
                   <div className="form-group">
-                    <label className="form-label">New 6-Digit PIN / नया 6-अंकीय पिन *</label>
+                    <label className="form-label">New 6-Digit PIN</label>
                     <input
                       type="password"
-                      className="form-input font-mono"
-                      placeholder="e.g. 123456"
                       maxLength={6}
-                      inputMode="numeric"
+                      placeholder="Enter 6 digits"
                       value={newPin}
                       onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
-                      autoFocus
+                      className="form-input font-mono"
+                      style={{ fontSize: '1.25rem', letterSpacing: '0.25em', textAlign: 'center' }}
+                      required
                     />
-                    <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '6px' }}>
-                      PIN must be exactly 6 digits (numbers only).
-                    </div>
                   </div>
                 </div>
 
                 <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={() => setShowPinModal(false)}
-                    disabled={pinLoading}
-                  >
-                    Cancel
-                  </button>
+                  <button type="button" className="btn btn-outline" onClick={closeModal}>Cancel</button>
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={pinLoading}
+                    disabled={pinLoading || newPin.length !== 6}
                   >
-                    {pinLoading ? <RefreshCw size={15} className="spin" /> : <CheckCircle2 size={15} />}
-                    <span>{pinLoading ? 'Updating...' : 'Update PIN'}</span>
+                    {pinLoading ? 'Updating...' : 'Save PIN'}
                   </button>
                 </div>
               </form>

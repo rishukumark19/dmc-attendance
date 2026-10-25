@@ -4,7 +4,7 @@ import { getInitials } from '../lib/utils';
 import { LogOut, ShieldCheck, User } from './Icons';
 import './Header.css';
 
-export default function Header({ title, subtitle, onMenuToggle, showMenuBtn = false }) {
+export default function Header({ title, subtitle, onMenuToggle, showMenuBtn = false, onAvatarClick }) {
   const { profile, logout } = useAuth();
   const initials = profile ? getInitials(profile.name) : '?';
 
@@ -41,7 +41,7 @@ export default function Header({ title, subtitle, onMenuToggle, showMenuBtn = fa
           />
           <div className="hdr-text">
             <div className="hdr-brand-row">
-              <h1>{title || 'धनबाद नगर निगम'}</h1>
+              <h1>{title || 'Dhanbad Municipal Corporation'}</h1>
               <span className="hdr-live-pill">
                 <span className="live-pulse" /> Live
               </span>
@@ -51,7 +51,12 @@ export default function Header({ title, subtitle, onMenuToggle, showMenuBtn = fa
         </div>
 
         <div className="hdr-right">
-          <div className="hdr-chip">
+          <div
+            className="hdr-chip"
+            onClick={onAvatarClick}
+            style={onAvatarClick ? { cursor: 'pointer' } : undefined}
+            title={onAvatarClick ? 'View Digital ID Pass' : undefined}
+          >
             <div className={`hdr-avatar ${isAdmin ? 'hdr-avatar-admin' : 'hdr-avatar-staff'}`}>
               {isAdmin ? <ShieldCheck size={16} /> : (initials || <User size={16} />)}
             </div>
