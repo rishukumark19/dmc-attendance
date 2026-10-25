@@ -1,16 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://dgzfabwvyzmtygmfsbfx.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_nH9qXrhFmi0_1m_CY8cgnA_9EuVTpy4';
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Missing Supabase environment variables! Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are configured in .env');
-}
-
-export const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export function makeTempClient() {
-  return createClient(SUPABASE_URL || '', SUPABASE_KEY || '', {
+  return createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: { storageKey: 'nn_temp_' + Date.now(), persistSession: false },
   });
 }
